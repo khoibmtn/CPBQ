@@ -1,0 +1,363 @@
+#!/usr/bin/env python3
+"""
+upload_to_bigquery.py - Upload dữ liệu BHYT từ Excel lên BigQuery
+===================================================================
+Sử dụng: source venv/bin/activate && python upload_to_bigquery.py CPBQ.xlsx
+
+Tính năng:
+  - Đọc file Excel, chuẩn hóa kiểu dữ liệu
+  - Tự động tạo dataset/table nếu chưa có
+  - Check trùng lặp theo nam_qt + thang_qt + ma_cskcb
+  - Thêm metadata: upload_timestamp, source_file
+"""
+
+import sys
+import os
+from datetime import datetime
+
+import pandas as pd
+from google.cloud import bigquery
+from google.api_core.exceptions import NotFound
+
+from config import PROJECT_ID, DATASET_ID, TABLE_ID, FULL_TABLE_ID, LOCATION, SHEET_NAME
+from auth import get_credentials
+
+
+# ─── BigQuery Schema ──────────────────────────────────────────────────────────
+
+SCHEMA = [
+    bigquery.SchemaField("stt", "INT64"),
+    bigquery.SchemaField("ma_bn", "STRING"),
+    bigquery.SchemaField("ho_ten", "STRING"),
+    bigquery.SchemaField("ngay_sinh", "DATE"),
+    bigquery.SchemaField("gioi_tinh", "INT64"),
+    bigquery.SchemaField("dia_chi", "STRING"),
+    bigquery.SchemaField("ma_the", "STRING"),
+    bigquery.SchemaField("ma_dkbd", "STRING"),
+    bigquery.SchemaField("gt_the_tu", "DATE"),
+    bigquery.SchemaField("gt_the_den", "DATE"),
+    bigquery.SchemaField("ma_benh", "STRING"),
+    bigquery.SchemaField("ma_benhkhac", "STRING"),
+    bigquery.SchemaField("ma_lydo_vvien", "INT64"),
+    bigquery.SchemaField("ma_noi_chuyen", "STRING"),
+    bigquery.SchemaField("ngay_vao", "DATETIME"),
+    bigquery.SchemaField("ngay_ra", "DATETIME"),
+    bigquery.SchemaField("so_ngay_dtri", "INT64"),
+    bigquery.SchemaField("ket_qua_dtri", "INT64"),
+    bigquery.SchemaField("tinh_trang_rv", "INT64"),
+    bigquery.SchemaField("t_tongchi", "FLOAT64"),
+    bigquery.SchemaField("t_xn", "FLOAT64"),
+    bigquery.SchemaField("t_cdha", "FLOAT64"),
+    bigquery.SchemaField("t_thuoc", "FLOAT64"),
+    bigquery.SchemaField("t_mau", "FLOAT64"),
+    bigquery.SchemaField("t_pttt", "FLOAT64"),
+    bigquery.SchemaField("t_vtyt", "FLOAT64"),
+    bigquery.SchemaField("t_dvkt_tyle", "FLOAT64"),
+    bigquery.SchemaField("t_thuoc_tyle", "FLOAT64"),
+    bigquery.SchemaField("t_vtyt_tyle", "FLOAT64"),
+    bigquery.SchemaField("t_kham", "FLOAT64"),
+    bigquery.SchemaField("t_giuong", "FLOAT64"),
+    bigquery.SchemaField("t_vchuyen", "FLOAT64"),
+    bigquery.SchemaField("t_bntt", "FLOAT64"),
+    bigquery.SchemaField("t_bhtt", "FLOAT64"),
+    bigquery.SchemaField("t_ngoaids", "FLOAT64"),
+    bigquery.SchemaField("ma_khoa", "STRING"),
+    bigquery.SchemaField("nam_qt", "INT64"),
+    bigquery.SchemaField("thang_qt", "INT64"),
+    bigquery.SchemaField("ma_khuvuc", "STRING"),
+    bigquery.SchemaField("ma_loaikcb", "INT64"),
+    bigquery.SchemaField("ma_cskcb", "STRING"),
+    bigquery.SchemaField("noi_ttoan", "INT64"),
+    bigquery.SchemaField("giam_dinh", "STRING"),
+    bigquery.SchemaField("t_xuattoan", "FLOAT64"),
+    bigquery.SchemaField("t_nguonkhac", "FLOAT64"),
+    bigquery.SchemaField("t_datuyen", "FLOAT64"),
+    bigquery.SchemaField("t_vuottran", "FLOAT64"),
+    # Metadata columns
+    bigquery.SchemaField("upload_timestamp", "TIMESTAMP"),
+    bigquery.SchemaField("source_file", "STRING"),
+]
+
+
+# ─── Data Transformation ──────────────────────────────────────────────────────
+
+def parse_date_int(val):
+    """Chuyển int YYYYMMDD → datetime.date, trả None nếu lỗi."""
+    if pd.isna(val):
+        return None
+    try:
+        s = str(int(val))
+        return datetime.strptime(s, "%Y%m%d").date()
+    except (ValueError, TypeError):
+        return None
+
+
+def parse_datetime_str(val):
+    """Chuyển string '202601020735' → datetime, trả None nếu lỗi."""
+    if pd.isna(val):
+        return None
+    try:
+        s = str(val).strip().lstrip("'")
+        if len(s) == 12:
+            return datetime.strptime(s, "%Y%m%d%H%M")
+        elif len(s) == 14:
+            return datetime.strptime(s, "%Y%m%d%H%M%S")
+        elif len(s) == 8:
+            return datetime.strptime(s, "%Y%m%d")
+        return None
+    except (ValueError, TypeError):
+        return None
+
+
+def transform_dataframe(df: pd.DataFrame, source_filename: str) -> pd.DataFrame:
+    """Chuẩn hóa kiểu dữ liệu cho tất cả các cột."""
+    print("  ⏳ Chuẩn hóa dữ liệu...")
+
+    # Lowercase all column names
+    df.columns = [c.lower().strip() for c in df.columns]
+
+    # Date columns: YYYYMMDD int → date
+    for col in ["ngay_sinh", "gt_the_tu", "gt_the_den"]:
+        if col in df.columns:
+            df[col] = df[col].apply(parse_date_int)
+
+    # Datetime columns: string → datetime
+    for col in ["ngay_vao", "ngay_ra"]:
+        if col in df.columns:
+            df[col] = df[col].apply(parse_datetime_str)
+
+    # String columns: ensure str type
+    str_cols = ["ma_bn", "ma_the", "ma_dkbd", "ma_benh", "ma_benhkhac",
+                "ma_noi_chuyen", "ma_khoa", "ma_khuvuc", "ma_cskcb",
+                "giam_dinh", "ho_ten", "dia_chi"]
+    for col in str_cols:
+        if col in df.columns:
+            df[col] = df[col].apply(lambda x: str(x) if pd.notna(x) and x != "" else None)
+            # Clean 'nan' strings
+            df[col] = df[col].replace("nan", None)
+
+    # Float columns: ensure float type
+    float_cols = ["t_tongchi", "t_xn", "t_cdha", "t_thuoc", "t_mau",
+                  "t_pttt", "t_vtyt", "t_dvkt_tyle", "t_thuoc_tyle",
+                  "t_vtyt_tyle", "t_kham", "t_giuong", "t_vchuyen",
+                  "t_bntt", "t_bhtt", "t_ngoaids", "t_xuattoan",
+                  "t_nguonkhac", "t_datuyen", "t_vuottran"]
+    for col in float_cols:
+        if col in df.columns:
+            df[col] = pd.to_numeric(df[col], errors="coerce")
+
+    # Int columns: coerce to int
+    int_cols = ["stt", "gioi_tinh", "ma_lydo_vvien", "so_ngay_dtri",
+                "ket_qua_dtri", "tinh_trang_rv", "nam_qt", "thang_qt",
+                "ma_loaikcb", "noi_ttoan"]
+    for col in int_cols:
+        if col in df.columns:
+            df[col] = pd.to_numeric(df[col], errors="coerce")
+
+    # Add metadata columns
+    df["upload_timestamp"] = datetime.utcnow()
+    df["source_file"] = source_filename
+
+    print(f"  ✅ Chuẩn hóa xong: {len(df)} dòng")
+    return df
+
+
+# ─── BigQuery Operations ──────────────────────────────────────────────────────
+
+def ensure_dataset(client: bigquery.Client):
+    """Tạo dataset nếu chưa tồn tại."""
+    dataset_ref = f"{PROJECT_ID}.{DATASET_ID}"
+    try:
+        client.get_dataset(dataset_ref)
+        print(f"  ✅ Dataset '{DATASET_ID}' đã tồn tại")
+    except NotFound:
+        dataset = bigquery.Dataset(dataset_ref)
+        dataset.location = LOCATION
+        dataset.description = "Dữ liệu chi phí bảo quản BHYT - TTYT Thủy Nguyên"
+        client.create_dataset(dataset)
+        print(f"  ✅ Đã tạo dataset '{DATASET_ID}' tại {LOCATION}")
+
+
+def ensure_table(client: bigquery.Client):
+    """Tạo table nếu chưa tồn tại."""
+    try:
+        client.get_table(FULL_TABLE_ID)
+        print(f"  ✅ Table '{TABLE_ID}' đã tồn tại")
+    except NotFound:
+        table = bigquery.Table(FULL_TABLE_ID, schema=SCHEMA)
+        table.description = "Dữ liệu thanh toán BHYT hàng tháng"
+        # Partition by thang_qt for efficient querying
+        table.range_partitioning = bigquery.RangePartitioning(
+            field="thang_qt",
+            range_=bigquery.PartitionRange(start=1, end=13, interval=1),
+        )
+        client.create_table(table)
+        print(f"  ✅ Đã tạo table '{TABLE_ID}'")
+
+
+def check_duplicates(client: bigquery.Client, df: pd.DataFrame) -> list:
+    """
+    Kiểm tra xem dữ liệu đã tồn tại trên BigQuery chưa.
+    Trả về danh sách các (nam_qt, thang_qt, ma_cskcb) đã có.
+    """
+    try:
+        client.get_table(FULL_TABLE_ID)
+    except NotFound:
+        return []  # Table chưa tồn tại → không trùng
+
+    # Lấy unique combos từ DataFrame
+    combos = df[["nam_qt", "thang_qt", "ma_cskcb"]].drop_duplicates()
+    conditions = []
+    for _, row in combos.iterrows():
+        nam = int(row["nam_qt"])
+        thang = int(row["thang_qt"])
+        cskcb = str(row["ma_cskcb"])
+        conditions.append(
+            f"(nam_qt = {nam} AND thang_qt = {thang} AND ma_cskcb = '{cskcb}')"
+        )
+
+    if not conditions:
+        return []
+
+    query = f"""
+        SELECT DISTINCT nam_qt, thang_qt, ma_cskcb, COUNT(*) as so_dong
+        FROM `{FULL_TABLE_ID}`
+        WHERE {' OR '.join(conditions)}
+        GROUP BY nam_qt, thang_qt, ma_cskcb
+    """
+    results = list(client.query(query).result())
+    return [(r.nam_qt, r.thang_qt, r.ma_cskcb, r.so_dong) for r in results]
+
+
+def upload_data(client: bigquery.Client, df: pd.DataFrame):
+    """Upload DataFrame lên BigQuery."""
+    job_config = bigquery.LoadJobConfig(
+        schema=SCHEMA,
+        write_disposition=bigquery.WriteDisposition.WRITE_APPEND,
+    )
+
+    print(f"  ⏳ Đang upload {len(df)} dòng lên {FULL_TABLE_ID}...")
+    job = client.load_table_from_dataframe(df, FULL_TABLE_ID, job_config=job_config)
+    job.result()  # Wait for completion
+
+    table = client.get_table(FULL_TABLE_ID)
+    print(f"  ✅ Upload thành công! Tổng số dòng trên BigQuery: {table.num_rows}")
+
+
+# ─── Main ──────────────────────────────────────────────────────────────────────
+
+def main():
+    if len(sys.argv) < 2:
+        print("❌ Cách dùng: python upload_to_bigquery.py <đường_dẫn_file_excel>")
+        print("   Ví dụ: python upload_to_bigquery.py CPBQ.xlsx")
+        sys.exit(1)
+
+    filepath = sys.argv[1]
+    if not os.path.exists(filepath):
+        print(f"❌ Không tìm thấy file: {filepath}")
+        sys.exit(1)
+
+    filename = os.path.basename(filepath)
+    print(f"\n{'='*60}")
+    print(f"📊 UPLOAD DỮ LIỆU BHYT LÊN BIGQUERY")
+    print(f"{'='*60}")
+    print(f"  📁 File: {filename}")
+    print(f"  🎯 Target: {FULL_TABLE_ID}")
+    print(f"  📍 Location: {LOCATION}")
+    print()
+
+    # ── Step 1: Read Excel ──
+    print("📖 Bước 1: Đọc file Excel...")
+    try:
+        df = pd.read_excel(filepath, sheet_name=SHEET_NAME, engine="openpyxl")
+        print(f"  ✅ Đọc được {len(df)} dòng, {len(df.columns)} cột từ sheet '{SHEET_NAME}'")
+    except Exception as e:
+        print(f"  ❌ Lỗi đọc file: {e}")
+        sys.exit(1)
+
+    # ── Step 2: Transform data ──
+    print("\n🔄 Bước 2: Chuẩn hóa dữ liệu...")
+    df = transform_dataframe(df, filename)
+
+    # Show summary
+    combos = df[["nam_qt", "thang_qt", "ma_cskcb"]].drop_duplicates()
+    print(f"\n  📋 Tóm tắt dữ liệu:")
+    for _, row in combos.iterrows():
+        subset = df[(df["nam_qt"] == row["nam_qt"]) &
+                     (df["thang_qt"] == row["thang_qt"]) &
+                     (df["ma_cskcb"] == row["ma_cskcb"])]
+        print(f"     - {int(row['thang_qt']):02d}/{int(row['nam_qt'])} | "
+              f"CSKCB: {row['ma_cskcb']} | "
+              f"{len(subset)} dòng | "
+              f"Tổng chi: {subset['t_tongchi'].sum():,.0f} VND")
+
+    # ── Step 3: Connect to BigQuery ──
+    print("\n🔗 Bước 3: Kết nối BigQuery...")
+    try:
+        creds = get_credentials()
+        client = bigquery.Client(project=PROJECT_ID, location=LOCATION, credentials=creds)
+        print(f"  ✅ Đã kết nối project '{PROJECT_ID}'")
+    except Exception as e:
+        print(f"  ❌ Lỗi kết nối: {e}")
+        print("  💡 Kiểm tra file credentials/client_secret.json")
+        sys.exit(1)
+
+    # ── Step 4: Ensure dataset & table ──
+    print("\n📦 Bước 4: Kiểm tra dataset & table...")
+    ensure_dataset(client)
+    ensure_table(client)
+
+    # ── Step 5: Check duplicates ──
+    print("\n🔍 Bước 5: Kiểm tra trùng lặp...")
+    duplicates = check_duplicates(client, df)
+    if duplicates:
+        print("  ⚠️  Phát hiện dữ liệu đã tồn tại trên BigQuery:")
+        for nam, thang, cskcb, count in duplicates:
+            print(f"     - {thang:02d}/{nam} | CSKCB: {cskcb} | {count} dòng")
+
+        choice = input("\n  Bạn muốn:\n"
+                       "    [1] Bỏ qua phần trùng, chỉ upload phần mới\n"
+                       "    [2] Upload tất cả (cho phép trùng)\n"
+                       "    [3] Xóa dữ liệu cũ rồi upload lại\n"
+                       "    [0] Hủy\n"
+                       "  Chọn (0/1/2/3): ").strip()
+
+        if choice == "0":
+            print("\n  ❌ Đã hủy upload.")
+            sys.exit(0)
+        elif choice == "1":
+            # Filter out duplicates
+            for nam, thang, cskcb, _ in duplicates:
+                df = df[~((df["nam_qt"] == nam) &
+                          (df["thang_qt"] == thang) &
+                          (df["ma_cskcb"] == cskcb))]
+            if len(df) == 0:
+                print("\n  ℹ️  Không còn dữ liệu mới để upload.")
+                sys.exit(0)
+            print(f"\n  ℹ️  Còn lại {len(df)} dòng mới để upload.")
+        elif choice == "3":
+            # Delete old data
+            for nam, thang, cskcb, _ in duplicates:
+                delete_query = f"""
+                    DELETE FROM `{FULL_TABLE_ID}`
+                    WHERE nam_qt = {nam} AND thang_qt = {thang} AND ma_cskcb = '{cskcb}'
+                """
+                client.query(delete_query).result()
+                print(f"  🗑️  Đã xóa dữ liệu cũ: {thang:02d}/{nam} | CSKCB: {cskcb}")
+        # choice == "2": upload all (do nothing)
+    else:
+        print("  ✅ Không phát hiện trùng lặp.")
+
+    # ── Step 6: Upload ──
+    print(f"\n🚀 Bước 6: Upload dữ liệu...")
+    upload_data(client, df)
+
+    print(f"\n{'='*60}")
+    print(f"🎉 HOÀN THÀNH!")
+    print(f"{'='*60}")
+    print(f"  Để truy vấn dữ liệu, vào: https://console.cloud.google.com/bigquery?project={PROJECT_ID}")
+    print()
+
+
+if __name__ == "__main__":
+    main()

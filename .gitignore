@@ -1,0 +1,10 @@
+# CPBQ - Upload dữ liệu BHYT lên BigQuery
+
+# Credentials (KHÔNG commit lên git)
+credentials/
+venv/
+
+# Python
+__pycache__/
+*.pyc
+.env
