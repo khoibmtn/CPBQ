@@ -1,10 +1,12 @@
 ---
-description: Load previously saved context to restore session background
+description: Restore project state from Source of Truth and session logs
 ---
 
-1. List available context files
+1. Read latest Source of Truth
 // turbo
-2. Run `ls -lt .agent/context/`
-3. Read the most recent context file (manually or via tool)
-4. Update task.md if necessary
-5. Context loaded
+2. Run `cat .agent/context/latest_context.md`
+3. List recent session logs
+// turbo
+4. Run `ls -lt .agent/context/context-*.md | head -n 5`
+5. Read most recent session log if needed
+6. Done
