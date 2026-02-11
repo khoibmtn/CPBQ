@@ -4,6 +4,11 @@
 credentials/
 venv/
 
+# Data files (quá lớn cho GitHub)
+*.xlsx
+*.xls
+~$*
+
 # Python
 __pycache__/
 *.pyc

@@ -5,7 +5,7 @@ create_view.py - Tạo VIEW enriched trên BigQuery
 Sử dụng: source venv/bin/activate && python create_view.py
 
 Tạo VIEW v_thanh_toan tự động JOIN data gốc với 3 bảng lookup,
-thêm 4 cột: ml2, ml4, ten_cskcb, khoa.
+thêm 5 cột: ml2, ml4, ten_cskcb, khoa, ma_benh_chinh.
 
 Logic cột 'khoa':
   - Ngoại trú + Khám bệnh        → "Khám bệnh (ten_cskcb)"
@@ -58,7 +58,8 @@ SELECT
       END
     -- Nội trú → lookup khoa
     ELSE kp.short_name
-  END AS khoa
+  END AS khoa,
+  LEFT(t.ma_benh, 3) AS ma_benh_chinh
 
 FROM {ds}.{TABLE_ID}` t
 
@@ -108,14 +109,14 @@ def main():
     # Quick verification
     print(f"\n🔍 Kiểm tra nhanh VIEW...")
     verify_sql = f"""
-    SELECT ml2, ml4, ten_cskcb, khoa, ma_loaikcb, ma_khoa, ma_cskcb
+    SELECT ml2, ml4, ten_cskcb, khoa, ma_benh_chinh, ma_benh, ma_loaikcb, ma_khoa, ma_cskcb
     FROM `{PROJECT_ID}.{DATASET_ID}.{VIEW_ID}`
     LIMIT 5
     """
     results = list(client.query(verify_sql).result())
     print(f"  ✅ VIEW trả về {len(results)} rows (sample):")
     for r in results:
-        print(f"     ml2={r.ml2}, ml4={r.ml4}, cskcb={r.ten_cskcb}, khoa={r.khoa}")
+        print(f"     ml2={r.ml2}, ml4={r.ml4}, khoa={r.khoa}, ma_benh={r.ma_benh}→{r.ma_benh_chinh}")
 
     print(f"\n{'='*60}")
     print(f"🎉 HOÀN THÀNH!")
