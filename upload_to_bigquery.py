@@ -7,7 +7,7 @@ Sử dụng: source venv/bin/activate && python upload_to_bigquery.py CPBQ.xlsx
 Tính năng:
   - Đọc file Excel, chuẩn hóa kiểu dữ liệu
   - Tự động tạo dataset/table nếu chưa có
-  - Check trùng lặp theo nam_qt + thang_qt + ma_cskcb
+  - Check trùng lặp row-level theo (ma_cskcb + ma_bn + ma_loaikcb + ngay_vao + ngay_ra)
   - Thêm metadata: upload_timestamp, source_file
 """
 
@@ -77,6 +77,9 @@ SCHEMA = [
     bigquery.SchemaField("upload_timestamp", "TIMESTAMP"),
     bigquery.SchemaField("source_file", "STRING"),
 ]
+
+# Composite key xác định 1 đợt điều trị duy nhất của bệnh nhân
+ROW_KEY_COLS = ["ma_cskcb", "ma_bn", "ma_loaikcb", "ngay_vao", "ngay_ra"]
 
 
 # ─── Data Transformation ──────────────────────────────────────────────────────
@@ -191,42 +194,85 @@ def ensure_table(client: bigquery.Client):
             field="thang_qt",
             range_=bigquery.PartitionRange(start=1, end=13, interval=1),
         )
+        table.clustering_fields = ["ma_cskcb", "ma_bn"]
         client.create_table(table)
         print(f"  ✅ Đã tạo table '{TABLE_ID}'")
 
 
-def check_duplicates(client: bigquery.Client, df: pd.DataFrame) -> list:
+def check_duplicates(client: bigquery.Client, df: pd.DataFrame) -> pd.DataFrame:
     """
-    Kiểm tra xem dữ liệu đã tồn tại trên BigQuery chưa.
-    Trả về danh sách các (nam_qt, thang_qt, ma_cskcb) đã có.
+    Kiểm tra trùng lặp ở cấp từng dòng (row-level).
+    Sử dụng 2-stage approach:
+      Stage 1: Lọc theo ma_bn (mã bệnh nhân) → tìm tất cả lượt KCB của cùng BN
+      Stage 2: Merge chính xác theo composite key (ma_cskcb, ma_bn, ma_loaikcb, ngay_vao, ngay_ra)
+    Trả về DataFrame chứa các dòng trùng (từ df gốc), hoặc DataFrame rỗng.
     """
     try:
         client.get_table(FULL_TABLE_ID)
     except NotFound:
-        return []  # Table chưa tồn tại → không trùng
+        return pd.DataFrame()  # Table chưa tồn tại → không trùng
 
-    # Lấy unique combos từ DataFrame
-    combos = df[["nam_qt", "thang_qt", "ma_cskcb"]].drop_duplicates()
-    conditions = []
-    for _, row in combos.iterrows():
-        nam = int(row["nam_qt"])
-        thang = int(row["thang_qt"])
-        cskcb = str(row["ma_cskcb"])
-        conditions.append(
-            f"(nam_qt = {nam} AND thang_qt = {thang} AND ma_cskcb = '{cskcb}')"
-        )
+    # ── Stage 1: Lọc theo mã bệnh nhân ──
+    ma_bn_list = df["ma_bn"].dropna().unique().tolist()
+    if not ma_bn_list:
+        return pd.DataFrame()
 
-    if not conditions:
-        return []
+    # Chia batch nếu danh sách BN quá lớn (BigQuery giới hạn query size)
+    BATCH_SIZE = 5000
+    key_cols_sql = ", ".join(ROW_KEY_COLS)
+    all_bq_rows = []
 
-    query = f"""
-        SELECT DISTINCT nam_qt, thang_qt, ma_cskcb, COUNT(*) as so_dong
-        FROM `{FULL_TABLE_ID}`
-        WHERE {' OR '.join(conditions)}
-        GROUP BY nam_qt, thang_qt, ma_cskcb
-    """
-    results = list(client.query(query).result())
-    return [(r.nam_qt, r.thang_qt, r.ma_cskcb, r.so_dong) for r in results]
+    for i in range(0, len(ma_bn_list), BATCH_SIZE):
+        batch = ma_bn_list[i:i + BATCH_SIZE]
+        ma_bn_in = ", ".join([f"'{str(m)}'" for m in batch])
+        query = f"""
+            SELECT {key_cols_sql}
+            FROM `{FULL_TABLE_ID}`
+            WHERE ma_bn IN ({ma_bn_in})
+        """
+        batch_num = i // BATCH_SIZE + 1
+        total_batches = (len(ma_bn_list) + BATCH_SIZE - 1) // BATCH_SIZE
+        if total_batches > 1:
+            print(f"  ⏳ Đang truy vấn BigQuery (batch {batch_num}/{total_batches})...")
+        else:
+            print("  ⏳ Đang truy vấn BigQuery để so sánh...")
+        result = client.query(query).to_dataframe()
+        if not result.empty:
+            all_bq_rows.append(result)
+
+    if not all_bq_rows:
+        return pd.DataFrame()
+
+    bq_rows = pd.concat(all_bq_rows, ignore_index=True)
+
+    if bq_rows.empty:
+        return pd.DataFrame()
+
+    # ── Stage 2: Merge chính xác theo composite key ──
+    # Chuẩn hóa kiểu dữ liệu để merge chính xác
+    merge_df = df[ROW_KEY_COLS].copy()
+    for col in ["ma_cskcb", "ma_bn"]:
+        merge_df[col] = merge_df[col].astype(str)
+        bq_rows[col] = bq_rows[col].astype(str)
+    for col in ["ma_loaikcb"]:
+        merge_df[col] = pd.to_numeric(merge_df[col], errors="coerce")
+        bq_rows[col] = pd.to_numeric(bq_rows[col], errors="coerce")
+    for col in ["ngay_vao", "ngay_ra"]:
+        merge_df[col] = pd.to_datetime(merge_df[col], errors="coerce")
+        bq_rows[col] = pd.to_datetime(bq_rows[col], errors="coerce")
+
+    # Đánh dấu dòng nào trùng bằng merge indicator
+    merged = merge_df.merge(bq_rows, on=ROW_KEY_COLS, how="inner")
+
+    if merged.empty:
+        return pd.DataFrame()
+
+    # Trả về index của các dòng trùng trong df gốc
+    # Merge lại với df để lấy đúng index
+    dup_mask = df[ROW_KEY_COLS].apply(tuple, axis=1).isin(
+        merged[ROW_KEY_COLS].apply(tuple, axis=1)
+    )
+    return df[dup_mask]
 
 
 def upload_data(client: bigquery.Client, df: pd.DataFrame):
@@ -308,17 +354,25 @@ def main():
     ensure_table(client)
 
     # ── Step 5: Check duplicates ──
-    print("\n🔍 Bước 5: Kiểm tra trùng lặp...")
-    duplicates = check_duplicates(client, df)
-    if duplicates:
-        print("  ⚠️  Phát hiện dữ liệu đã tồn tại trên BigQuery:")
-        for nam, thang, cskcb, count in duplicates:
-            print(f"     - {thang:02d}/{nam} | CSKCB: {cskcb} | {count} dòng")
+    print("\n🔍 Bước 5: Kiểm tra trùng lặp (row-level)...")
+    print(f"  🔑 Composite key: {' + '.join(ROW_KEY_COLS)}")
+    dup_df = check_duplicates(client, df)
+
+    if not dup_df.empty:
+        # Thống kê trùng theo tháng/CSKCB
+        dup_summary = dup_df.groupby(["nam_qt", "thang_qt", "ma_cskcb"]).size().reset_index(name="so_dong")
+        print(f"  ⚠️  Phát hiện {len(dup_df)}/{len(df)} dòng đã tồn tại trên BigQuery:")
+        for _, row in dup_summary.iterrows():
+            print(f"     - {int(row['thang_qt']):02d}/{int(row['nam_qt'])} | "
+                  f"CSKCB: {row['ma_cskcb']} | {row['so_dong']} dòng trùng")
+
+        new_count = len(df) - len(dup_df)
+        print(f"  ℹ️  Dòng mới (chưa có trên BQ): {new_count}")
 
         choice = input("\n  Bạn muốn:\n"
                        "    [1] Bỏ qua phần trùng, chỉ upload phần mới\n"
                        "    [2] Upload tất cả (cho phép trùng)\n"
-                       "    [3] Xóa dữ liệu cũ rồi upload lại\n"
+                       "    [3] Xóa dữ liệu trùng cũ rồi upload lại tất cả\n"
                        "    [0] Hủy\n"
                        "  Chọn (0/1/2/3): ").strip()
 
@@ -326,24 +380,37 @@ def main():
             print("\n  ❌ Đã hủy upload.")
             sys.exit(0)
         elif choice == "1":
-            # Filter out duplicates
-            for nam, thang, cskcb, _ in duplicates:
-                df = df[~((df["nam_qt"] == nam) &
-                          (df["thang_qt"] == thang) &
-                          (df["ma_cskcb"] == cskcb))]
+            # Lọc chính xác từng dòng trùng, giữ lại dòng mới
+            dup_keys = set(dup_df[ROW_KEY_COLS].apply(tuple, axis=1))
+            df = df[~df[ROW_KEY_COLS].apply(tuple, axis=1).isin(dup_keys)]
             if len(df) == 0:
                 print("\n  ℹ️  Không còn dữ liệu mới để upload.")
                 sys.exit(0)
             print(f"\n  ℹ️  Còn lại {len(df)} dòng mới để upload.")
         elif choice == "3":
-            # Delete old data
-            for nam, thang, cskcb, _ in duplicates:
+            # Xóa chính xác từng nhóm dòng trùng trên BigQuery
+            dup_groups = dup_df.groupby(["nam_qt", "thang_qt", "ma_cskcb"])
+            for (nam, thang, cskcb), group in dup_groups:
+                # Build conditions cho từng dòng trùng trong nhóm
+                row_conditions = []
+                for _, r in group.iterrows():
+                    ngay_vao_str = r["ngay_vao"].strftime("%Y-%m-%d %H:%M:%S") if pd.notna(r["ngay_vao"]) else None
+                    ngay_ra_str = r["ngay_ra"].strftime("%Y-%m-%d %H:%M:%S") if pd.notna(r["ngay_ra"]) else None
+                    parts = [f"ma_cskcb = '{r['ma_cskcb']}'",
+                             f"ma_bn = '{r['ma_bn']}'"]
+                    parts.append(f"ma_loaikcb = {int(r['ma_loaikcb'])}" if pd.notna(r["ma_loaikcb"]) else "ma_loaikcb IS NULL")
+                    parts.append(f"ngay_vao = '{ngay_vao_str}'" if ngay_vao_str else "ngay_vao IS NULL")
+                    parts.append(f"ngay_ra = '{ngay_ra_str}'" if ngay_ra_str else "ngay_ra IS NULL")
+                    row_conditions.append(f"({' AND '.join(parts)})")
+
+                # Xóa theo batch mỗi nhóm tháng/CSKCB
                 delete_query = f"""
                     DELETE FROM `{FULL_TABLE_ID}`
-                    WHERE nam_qt = {nam} AND thang_qt = {thang} AND ma_cskcb = '{cskcb}'
+                    WHERE nam_qt = {int(nam)} AND thang_qt = {int(thang)}
+                      AND ({' OR '.join(row_conditions)})
                 """
                 client.query(delete_query).result()
-                print(f"  🗑️  Đã xóa dữ liệu cũ: {thang:02d}/{nam} | CSKCB: {cskcb}")
+                print(f"  🗑️  Đã xóa {len(group)} dòng cũ: {int(thang):02d}/{int(nam)} | CSKCB: {cskcb}")
         # choice == "2": upload all (do nothing)
     else:
         print("  ✅ Không phát hiện trùng lặp.")
