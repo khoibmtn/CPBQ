@@ -123,12 +123,45 @@ def render():
         st.warning("⚠️ Chưa có dữ liệu trong database.")
         return
 
+    metric_options = {"Số lượt KCB": "so_luot", "Tổng chi phí (VNĐ)": "tong_chi"}
+    metric_labels = list(metric_options.keys())
+
+    # Restore previous selections from persistent session_state vars
+    default_year_idx = 0
+    if "_saved_ov_year" in st.session_state:
+        saved = st.session_state._saved_ov_year
+        if saved in years:
+            default_year_idx = years.index(saved)
+
+    default_metric_idx = 0
+    if "_saved_ov_metric" in st.session_state:
+        saved = st.session_state._saved_ov_metric
+        if saved in metric_labels:
+            default_metric_idx = metric_labels.index(saved)
+
+    def _on_year_change():
+        st.session_state._saved_ov_year = st.session_state._wgt_ov_year
+
+    def _on_metric_change():
+        st.session_state._saved_ov_metric = st.session_state._wgt_ov_metric
+
     col1, col2 = st.columns([1, 1])
     with col1:
-        selected_year = st.selectbox("📅 Năm quyết toán", years, index=0)
+        selected_year = st.selectbox(
+            "📅 Năm quyết toán", years,
+            index=default_year_idx,
+            key="_wgt_ov_year",
+            on_change=_on_year_change,
+        )
+        st.session_state._saved_ov_year = selected_year
     with col2:
-        metric_options = {"Số lượt KCB": "so_luot", "Tổng chi phí (VNĐ)": "tong_chi"}
-        metric_label = st.selectbox("📈 Chỉ số hiển thị", list(metric_options.keys()))
+        metric_label = st.selectbox(
+            "📈 Chỉ số hiển thị", metric_labels,
+            index=default_metric_idx,
+            key="_wgt_ov_metric",
+            on_change=_on_metric_change,
+        )
+        st.session_state._saved_ov_metric = metric_label
         metric = metric_options[metric_label]
 
     # ── Load data ──

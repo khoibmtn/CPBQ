@@ -42,9 +42,9 @@ SCHEMAS = {
         bigquery.SchemaField("valid_to", "INT64"),
     ],
     LOOKUP_KHOA_TABLE: [
+        bigquery.SchemaField("thu_tu", "INT64"),
         bigquery.SchemaField("ma_cskcb", "STRING"),
         bigquery.SchemaField("makhoa_xml", "STRING"),
-        bigquery.SchemaField("ma_gop", "STRING"),
         bigquery.SchemaField("full_name", "STRING"),
         bigquery.SchemaField("short_name", "STRING"),
         bigquery.SchemaField("valid_from", "INT64"),

@@ -13,6 +13,7 @@ FULL_TABLE_ID = f"{PROJECT_ID}.{DATASET_ID}.{TABLE_ID}"
 LOOKUP_LOAIKCB_TABLE = "lookup_loaikcb"
 LOOKUP_CSKCB_TABLE = "lookup_cskcb"
 LOOKUP_KHOA_TABLE = "lookup_khoa"
+LOOKUP_PROFILES_TABLE = "lookup_profiles"
 
 # VIEW (enriched data)
 VIEW_ID = "v_thanh_toan"
