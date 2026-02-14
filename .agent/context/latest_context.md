@@ -1,38 +1,50 @@
-# CPBQ Project — Source of Truth
-**Last updated:** 2026-02-13 01:46 (conversation c7e54f48)
+# CPBQ Project – Source of Truth
 
-## Current State
-- **Branch:** main
-- **Latest tag:** v20260213-0146
-- **App:** Streamlit dashboard at localhost:8501
-- **Key files:** `views/cost_by_dept.py` (1207 lines)
+## Last Updated: 2026-02-15T00:56+07:00
+## Git Tag: v20260215-0056
 
-## Recent Changes (This Session — 2026-02-12 ~ 2026-02-13)
+## Project Overview
+Streamlit dashboard for BHYT (health insurance) cost analysis backed by BigQuery.
 
-### 1. Column Order Fix
-- Refactored `_get_active_columns()` to return a unified list of column definitions preserving `thu_tu` order from profiles
-- Modified `_render_comparison_table()` to iterate unified list for headers/data rows
+## Architecture
+- **Framework**: Streamlit (Python)
+- **Database**: Google BigQuery
+- **Key files**: `app.py`, `config.py`, `bq_helper.py`, `tw_components.py`
+- **Views**: `overview.py`, `hospital_stats.py`, `cost_by_dept.py`, `icd_analysis.py`, `settings.py`
+- **Upload**: `upload_to_bigquery.py`, `create_view.py`, `upload_lookup.py`
+- **Virtual env**: `./venv`
 
-### 2. Ratio Column Feature ("Cột tỷ lệ")
-- Added checkbox next to profile dropdown (auto-disables with < 2 periods)
-- Added helper functions: `_get_col_raw_value()`, `_fmt_pct_change()`
-- "Tỷ lệ%" column shows `(last/first - 1) × 100%` with green/red color coding
+## Menu Structure (sidebar)
+1. Quản lý số liệu (overview.py) — 3 tabs: Số liệu tổng hợp, Quản lý số liệu, Import
+2. Số liệu tổng hợp (hospital_stats.py)
+3. Chi phí theo khoa (cost_by_dept.py)
+4. Chi phí theo mã bệnh (icd_analysis.py)
+5. Cấu hình (settings.py)
 
-### 3. Excel Export Feature ("📥 Tải Excel")
-- New `_export_to_excel()` function (~275 lines) using openpyxl
-- Mirrors table structure: merged headers, thin black borders, black text, bold for headers/subtotals/total
-- Download button in 3-column layout: Profile dropdown | Checkbox | Download button
-- File named `CP_theo_khoa_{period_text}.xlsx`
+## Recent Changes (this session)
 
-## Architecture Notes
-- `cost_by_dept.py` uses HTML table rendering via `st.markdown(unsafe_allow_html=True)`
-- Data from BigQuery view `v_thanh_toan` grouped by ml2 (Ngoại trú / Nội trú) then by khoa
-- Profiles stored in `lookup_profiles` BigQuery table, define column order via `thu_tu`
-- Column types: `metric` (direct fields), `bq` (calculated averages), `ratio` (numerator/denominator)
+### Redesigned "Quản lý số liệu" Tab
+- **Year-based data loading**: Dropdown for year + "Tải dữ liệu" button → on-demand query from `v_thanh_toan` VIEW
+- **Full-field table**: All columns from enriched view (ml2, ml4, ten_cskcb, khoa, ma_benh_chinh), excluding upload_timestamp & source_file
+- **Instant search**: Text input filters client-side in real-time
+- **Configurable search columns**: Popover "⚙️ Cột tìm kiếm" with multiselect (defaults: ho_ten, ma_bn, ma_the, ma_benh, etc.)
+- **Row-level checkboxes**: `st.data_editor` with ☑ column for each row
+- **Select All**: Checkbox above table to select/deselect all rows on current page
+- **Delete selected rows**: Button "🗑️ Xóa N dòng đã chọn" with warning + "XÓA" confirmation
+- **Auto-refresh after delete**: Caches cleared, data reloaded from BQ, toast shown after rerun
+- **Removed**: Old "Xóa dữ liệu theo kỳ" section completely removed
 
-## Roadmap (ghi nhận 2026-02-14)
-1. **Gộp khoa (dưới dạng profile)** — Thêm chức năng gộp nhiều khoa thành nhóm, quản lý bằng profile
-2. **Page "Số liệu toàn viện"** — Trang tổng hợp số liệu toàn bệnh viện
-3. **Page "ICD"** — Trang tra cứu/thống kê theo mã ICD
-4. **Page "Dự kiến chi"** — Trang dự kiến chi phí
-5. **Page "Biểu đồ"** — Trang hiển thị biểu đồ trực quan
+### New cached functions in overview.py
+- `_load_available_years()` — distinct years from main table
+- `_load_manage_data(nam_qt)` — full data from VIEW filtered by year
+
+### Key constants
+- `_MANAGE_EXCLUDE_COLS = {"upload_timestamp", "source_file"}`
+- `_DEFAULT_SEARCH_COLS = ["ho_ten", "ma_bn", "ma_the", "ma_benh", ...]`
+- `_ROW_KEY_COLS = ["ma_cskcb", "ma_bn", "ma_loaikcb", "ngay_vao", "ngay_ra"]` (composite key for delete)
+
+## Previous Session Changes
+- Revamped Import tab: auto-detection of sheets, row validation, paginated tables, duplicate handling, lookup validation, double-upload prevention
+- Reusable `paginated_dataframe()` component in `tw_components.py`
+- `_clear_all_caches()` helper for cross-page cache invalidation
+- Color scheme redesign for dark theme consistency
