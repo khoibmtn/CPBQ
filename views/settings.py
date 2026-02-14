@@ -3,6 +3,7 @@ pages/settings.py - Trang Cài đặt
 ====================================
 Quản lý 3 bảng mã lookup: loại KCB, cơ sở KCB, khoa
 + Quản lý Profiles hiển thị cột
++ Quản lý Gộp khoa
 """
 
 import streamlit as st
@@ -12,6 +13,7 @@ from bq_helper import get_client, run_query, get_full_table_id
 from config import (
     LOOKUP_LOAIKCB_TABLE, LOOKUP_CSKCB_TABLE,
     LOOKUP_KHOA_TABLE, LOOKUP_PROFILES_TABLE,
+    LOOKUP_KHOA_MERGE_TABLE,
 )
 
 
@@ -45,6 +47,7 @@ ALL_METRIC_KEYS = [
     ("ngay_dttb", "Ngày ĐTTB"),
 ]
 METRIC_DISPLAY = {k: v for k, v in ALL_METRIC_KEYS}
+DEFAULT_ORDER = {k: i for i, (k, _) in enumerate(ALL_METRIC_KEYS)}
 
 
 # ─── Table Configs ────────────────────────────────────────────────────────────
@@ -349,12 +352,17 @@ def _render_profiles_tab():
         if mk_key not in existing_keys:
             max_thu_tu += 1
             items.append({"metric_key": mk_key, "thu_tu": max_thu_tu, "visible": False})
+
+    # Ensure every item has a stable default_order for unchecked sorting
+    for it in items:
+        if "default_order" not in it:
+            it["default_order"] = DEFAULT_ORDER.get(it["metric_key"], 999)
     st.session_state["pf_items"] = items
 
-    # ── Inject CSS: kill animation + match surgical-list table style ──
+    # ── Inject CSS for profile table UI ──
     st.markdown("""
     <style>
-    /* Kill Streamlit transition/animation for snappier updates */
+    /* Kill Streamlit transition/animation */
     [data-testid="stVerticalBlock"] > div,
     [data-testid="stHorizontalBlock"] > div,
     .stCheckbox, .stButton, .stMarkdown,
@@ -363,187 +371,553 @@ def _render_profiles_tab():
         animation: none !important;
         animation-duration: 0s !important;
     }
-    /* Zero column gaps for continuous row background */
+    /* Tight column alignment */
     [data-testid="stHorizontalBlock"] {
         gap: 0 !important;
+        align-items: center !important;
     }
-    /* Style arrow buttons as minimal blue icons (no border) */
-    div[data-testid="stHorizontalBlock"] button[kind="secondary"] {
-        background: transparent !important;
-        border: none !important;
-        box-shadow: none !important;
-        color: #3b82f6 !important;
-        font-size: 18px !important;
-        padding: 4px 0 !important;
-        min-height: 0 !important;
-        line-height: 1 !important;
-    }
-    div[data-testid="stHorizontalBlock"] button[kind="secondary"]:hover {
-        background: rgba(59,130,246,0.08) !important;
-        border-radius: 4px !important;
-    }
-    div[data-testid="stHorizontalBlock"] button[kind="secondary"]:disabled {
-        color: #cbd5e1 !important;
-        opacity: 0.5 !important;
-    }
-    /* Checkbox accent color to match blue theme */
-    .stCheckbox input[type="checkbox"] {
-        accent-color: #3b82f6 !important;
-    }
+    /* Compact checkbox label */
+    .stCheckbox > label { margin-bottom: 0 !important; }
+    .stCheckbox > label > span { font-size: 14px !important; }
     </style>
     """, unsafe_allow_html=True)
 
-    # ── Widget version counter: bump to force fresh widget keys ──
+    # ── Widget version counter ──
     if "pf_widget_ver" not in st.session_state:
         st.session_state["pf_widget_ver"] = 0
     wv = st.session_state["pf_widget_ver"]
 
-    # ── Metric list editor ──
     visible_count = sum(1 for it in items if it['visible'])
     total_count = len(items)
+    all_checked = all(it["visible"] for it in items)
 
-    # ── Profile info line ──
+    # ── Header: Profile name + count + "Chọn tất cả" toggle ──
+    hdr_left, hdr_right = st.columns([4, 1])
+    with hdr_left:
+        st.markdown(
+            f"<div style='margin-bottom:2px;'>"
+            f"<span style='font-size:18px;font-weight:700;color:#1e293b;'>"
+            f"Profile: {selected}</span></div>"
+            f"<div style='font-size:13px;color:#64748b;margin-bottom:8px;'>"
+            f"Đã chọn <b>{visible_count}</b> / {total_count} chỉ tiêu hiển thị</div>",
+            unsafe_allow_html=True,
+        )
+    with hdr_right:
+        toggle_key = f"pf_hdr_v{wv}"
+
+        # When an individual checkbox changed, we must reset the toggle
+        # so it reflects the new computed all_checked value
+        if st.session_state.get("pf_toggle_dirty"):
+            st.session_state["pf_toggle_dirty"] = False
+            if toggle_key in st.session_state:
+                del st.session_state[toggle_key]
+
+        def _on_toggle_all():
+            val = st.session_state[toggle_key]
+            for it in st.session_state["pf_items"]:
+                it["visible"] = val
+            # Bump widget version so checkboxes get fresh keys
+            st.session_state["pf_widget_ver"] = \
+                st.session_state.get("pf_widget_ver", 0) + 1
+
+        st.toggle(
+            "Chọn tất cả", value=all_checked,
+            key=toggle_key, on_change=_on_toggle_all,
+        )
+
+    # ── Table header (blue gradient) ──
     st.markdown(
-        f"<div style='margin-bottom:4px;font-size:13px;color:#64748b;'>"
-        f"<b style='color:#1e293b;'>Profile: {selected}</b>"
-        f" · {visible_count} / {total_count} cột hiển thị</div>",
+        "<div style='display:flex;align-items:center;padding:10px 16px;"
+        "background:linear-gradient(135deg,#1e3a8a,#2563eb);"
+        "border-radius:8px 8px 0 0;color:#fff;"
+        "font-size:12px;font-weight:600;letter-spacing:0.8px;"
+        "text-transform:uppercase;'>"
+        "<span style='width:50px;text-align:center;'>STT</span>"
+        "<span style='flex:1;padding-left:12px;'>Tên chỉ tiêu</span>"
+        "<span style='width:80px;text-align:center;'>Thao tác</span>"
+        "</div>",
         unsafe_allow_html=True,
     )
 
-    # ── Tri-state logic ──
-    all_checked = all(it["visible"] for it in items)
-    none_checked = not any(it["visible"] for it in items)
-    some_checked = not all_checked and not none_checked
+    # ── Build display list: checked first, then unchecked ──
+    checked = [it for it in items if it.get("visible", True)]
+    unchecked = [it for it in items if not it.get("visible", True)]
+    checked.sort(key=lambda x: x.get("thu_tu", 0))
+    unchecked.sort(key=lambda x: x.get("default_order", 999))
+    display_items = checked + unchecked
 
-    # ── Header row (navy blue, rounded top) – uses same column layout as rows ──
-    HDR_BG = "#2c4a7c"
-    hdr_cols = st.columns([0.35, 3, 0.6, 0.25, 0.25])
-    with hdr_cols[0]:
+    # ── Scrollable row list ──
+    with st.container(height=480):
+        ck_stt = 0   # STT counter for checked group
+        uc_stt = 0   # STT counter for unchecked group
+
+        for item in display_items:
+            key = item["metric_key"]
+            display_name = METRIC_DISPLAY.get(key, key)
+            visible = item.get("visible", True)
+            # Find real index in items list (for callbacks)
+            real_idx = next(i for i, it in enumerate(items)
+                           if it["metric_key"] == key)
+
+            if visible:
+                ck_stt += 1
+                stt_num = ck_stt
+                # Checked row styling: blue tint alternating
+                nc = "#2563eb"
+                nw = "700"
+            else:
+                uc_stt += 1
+                stt_num = uc_stt
+                # Unchecked row styling: neutral
+                nc = "#94a3b8"
+                nw = "400"
+
+            # Columns: STT | Checkbox+Name | (↑ | ↓) or empty
+            if visible:
+                cols = st.columns([0.35, 5.3, 0.18, 0.18])
+            else:
+                cols = st.columns([0.35, 5.65])
+
+            with cols[0]:
+                st.markdown(
+                    f"<div style='font-size:14px;font-weight:{nw};"
+                    f"color:{nc};text-align:center;padding:6px 0;'>"
+                    f"{stt_num}</div>",
+                    unsafe_allow_html=True,
+                )
+
+            with cols[1]:
+                cb_key = f"pf_v{wv}_{key}"
+
+                def _on_cb(_ridx=real_idx, _key=cb_key):
+                    new_val = st.session_state[_key]
+                    st.session_state["pf_items"][_ridx]["visible"] = new_val
+                    if new_val:
+                        # Checked → place at end of checked group
+                        max_tt = max(
+                            (it.get("thu_tu", 0)
+                             for it in st.session_state["pf_items"]
+                             if it["visible"]),
+                            default=0,
+                        )
+                        st.session_state["pf_items"][_ridx]["thu_tu"] = \
+                            max_tt + 1
+                    st.session_state["pf_toggle_dirty"] = True
+
+                st.checkbox(
+                    display_name, value=visible,
+                    key=cb_key, on_change=_on_cb,
+                )
+
+            # ↑↓ only for checked rows
+            if visible:
+                ck_idx_in_checked = ck_stt - 1  # 0-based position in checked
+                with cols[2]:
+                    if st.button("↑", key=f"pf_up{wv}_{key}",
+                                 disabled=(ck_idx_in_checked == 0)):
+                        # Swap with prev in checked list
+                        prev_item = checked[ck_idx_in_checked - 1]
+                        cur_tt = item["thu_tu"]
+                        item["thu_tu"] = prev_item["thu_tu"]
+                        prev_item["thu_tu"] = cur_tt
+                        st.session_state["pf_items"] = items
+                        st.session_state["pf_widget_ver"] = wv + 1
+                        st.rerun()
+
+                with cols[3]:
+                    if st.button("↓", key=f"pf_dn{wv}_{key}",
+                                 disabled=(
+                                     ck_idx_in_checked >= len(checked) - 1
+                                 )):
+                        next_item = checked[ck_idx_in_checked + 1]
+                        cur_tt = item["thu_tu"]
+                        item["thu_tu"] = next_item["thu_tu"]
+                        next_item["thu_tu"] = cur_tt
+                        st.session_state["pf_items"] = items
+                        st.session_state["pf_widget_ver"] = wv + 1
+                        st.rerun()
+
+            # Row divider
+            st.markdown(
+                "<div style='border-bottom:1px solid #d9dfe8;'></div>",
+                unsafe_allow_html=True,
+            )
+
+    # ── Footer: Cancel + Save ──
+    st.markdown("<div style='height:8px'></div>", unsafe_allow_html=True)
+    ft_left, ft_mid, ft_cancel, ft_save = st.columns([3, 1, 1, 1.2])
+    with ft_left:
         st.markdown(
-            f"<div style='text-align:center;padding:10px 0;font-weight:700;"
-            f"font-size:13px;color:#fff;background:{HDR_BG};"
-            f"border-radius:8px 0 0 0;letter-spacing:0.3px;"
-            f"min-height:40px;line-height:20px;'>STT</div>",
+            "<div style='font-size:12px;color:#94a3b8;padding-top:8px;'>"
+            "</div>",
             unsafe_allow_html=True,
         )
-    with hdr_cols[1]:
-        st.markdown(
-            f"<div style='padding:10px 8px;font-weight:700;"
-            f"font-size:13px;color:#fff;background:{HDR_BG};"
-            f"letter-spacing:0.3px;min-height:40px;line-height:20px;'>"
-            f"TÊN CHỈ TIÊU</div>",
-            unsafe_allow_html=True,
-        )
-    with hdr_cols[2]:
-        header_val = all_checked
-        label_suffix = " ⬒" if some_checked else ""
-        new_header = st.checkbox(
-            f"Tất cả{label_suffix}", value=header_val,
-            key=f"pf_hdr_v{wv}",
-        )
-        if new_header != header_val:
-            for it in items:
-                it["visible"] = new_header
-            st.session_state["pf_items"] = items
+    with ft_cancel:
+        if st.button("Hủy bỏ", key="pf_cancel", use_container_width=True):
+            # Reload original data
+            data = _load_profile_data(selected)
+            if data:
+                st.session_state["pf_items"] = data
+            else:
+                st.session_state["pf_items"] = _build_default_items()
             st.session_state["pf_widget_ver"] = wv + 1
+            st.cache_data.clear()
             st.rerun()
-    with hdr_cols[3]:
-        st.markdown(
-            f"<div style='text-align:center;padding:10px 0;font-weight:700;"
-            f"font-size:13px;color:#fff;background:{HDR_BG};"
-            f"min-height:40px;line-height:20px;'></div>",
-            unsafe_allow_html=True,
-        )
-    with hdr_cols[4]:
-        st.markdown(
-            f"<div style='text-align:center;padding:10px 0;font-weight:700;"
-            f"font-size:13px;color:#fff;background:{HDR_BG};"
-            f"border-radius:0 8px 0 0;min-height:40px;line-height:20px;'></div>",
-            unsafe_allow_html=True,
-        )
+    with ft_save:
+        if st.button("💾 Lưu profile", key="pf_save", type="primary",
+                      use_container_width=True):
+            try:
+                with st.spinner("⏳ Đang lưu profile..."):
+                    # Sort in display order (checked by thu_tu,
+                    # unchecked by default_order) before saving
+                    ck = [it for it in items if it.get("visible", True)]
+                    uc = [it for it in items if not it.get("visible", True)]
+                    ck.sort(key=lambda x: x.get("thu_tu", 0))
+                    uc.sort(key=lambda x: x.get("default_order", 999))
+                    ordered = ck + uc
+                    for i, item in enumerate(ordered):
+                        item["thu_tu"] = i + 1
+                    _save_profile(selected, ordered)
+                    st.cache_data.clear()
+                    st.session_state["pf_widget_ver"] = wv + 1
+                st.success(f"✅ Đã lưu profile **{selected}** ({len(items)} chỉ tiêu)!")
+            except Exception as e:
+                st.error(f"❌ Lỗi: {e}")
 
-    # ── Metric rows ──
-    for idx, item in enumerate(items):
-        key = item["metric_key"]
-        display_name = METRIC_DISPLAY.get(key, key)
-        visible = item.get("visible", True)
 
-        # Clean row styling: white / very light gray alternating
-        row_bg = "#ffffff" if idx % 2 == 0 else "#f8fafc"
-        border_btm = "border-bottom:1px solid #e2e8f0;"
+# ─── Merge Khoa helpers ──────────────────────────────────────────────────────
 
-        # Text styling based on visibility
-        if visible:
-            txt_color = "#1e293b"
-            txt_weight = "500"
-            num_color = "#334155"
+MERGE_SCHEMA = [
+    bigquery.SchemaField("target_khoa", "STRING", mode="REQUIRED"),
+    bigquery.SchemaField("source_khoa", "STRING", mode="REQUIRED"),
+]
+
+
+def _ensure_merge_table():
+    """Create lookup_khoa_merge table if it doesn't exist."""
+    client = get_client()
+    full_id = get_full_table_id(LOOKUP_KHOA_MERGE_TABLE)
+    table = bigquery.Table(full_id, schema=MERGE_SCHEMA)
+    client.create_table(table, exists_ok=True)
+
+
+def _load_merge_groups() -> list:
+    """Load merge rules grouped by target_khoa.
+    Returns list of dicts: [{target_khoa, sources: [source1, source2, ...]}]
+    """
+    try:
+        full_id = get_full_table_id(LOOKUP_KHOA_MERGE_TABLE)
+        query = f"SELECT target_khoa, source_khoa FROM `{full_id}` ORDER BY target_khoa, source_khoa"
+        df = run_query(query)
+        if df is None or df.empty:
+            return []
+        groups = {}
+        for _, row in df.iterrows():
+            target = row["target_khoa"]
+            if target not in groups:
+                groups[target] = []
+            groups[target].append(row["source_khoa"])
+        return [{"target_khoa": t, "sources": srcs} for t, srcs in groups.items()]
+    except Exception:
+        return []
+
+
+def _save_merge_groups(groups: list):
+    """Save all merge groups to BigQuery (WRITE_TRUNCATE)."""
+    _ensure_merge_table()
+    client = get_client()
+    full_id = get_full_table_id(LOOKUP_KHOA_MERGE_TABLE)
+
+    rows = []
+    for g in groups:
+        for src in g["sources"]:
+            rows.append({"target_khoa": g["target_khoa"], "source_khoa": src})
+
+    if rows:
+        df = pd.DataFrame(rows)
+    else:
+        df = pd.DataFrame(columns=["target_khoa", "source_khoa"])
+
+    job_config = bigquery.LoadJobConfig(
+        schema=MERGE_SCHEMA,
+        write_disposition=bigquery.WriteDisposition.WRITE_TRUNCATE,
+    )
+    job = client.load_table_from_dataframe(df, full_id, job_config=job_config)
+    job.result()
+
+
+def _load_khoa_options() -> list:
+    """Load all khoa entries for dropdown display.
+    Returns list of dicts: {short_name, makhoa, display, valid_from, valid_to, thu_tu}
+    Display format: 'K25 Sản (01/00 → ...)' including makhoa_xml for clarity.
+    Each row from lookup_khoa is shown individually (no deduplication).
+    valid_from / valid_to are raw int (YYYYMMDD) or None.
+    """
+    full_id = get_full_table_id(LOOKUP_KHOA_TABLE)
+    query = (
+        f"SELECT makhoa_xml, short_name, valid_from, valid_to, thu_tu "
+        f"FROM `{full_id}` ORDER BY short_name, makhoa_xml, valid_from"
+    )
+    df = run_query(query)
+    if df is None or df.empty:
+        return []
+
+    options = []
+    for _, row in df.iterrows():
+        makhoa = row.get("makhoa_xml", "")
+        name = row["short_name"]
+        vf = row.get("valid_from")
+        vt = row.get("valid_to")
+        thu_tu = row.get("thu_tu")
+
+        # Raw int values (None if missing)
+        vf_raw = int(vf) if pd.notna(vf) and vf else None
+        vt_raw = int(vt) if pd.notna(vt) and vt else None
+        thu_tu_raw = int(thu_tu) if pd.notna(thu_tu) and thu_tu else None
+
+        # Format valid_from
+        if vf_raw:
+            vf_str = f"{(vf_raw % 10000) // 100:02d}/{str(vf_raw)[:4][2:]}"
         else:
-            txt_color = "#94a3b8"
-            txt_weight = "400"
-            num_color = "#cbd5e1"
+            vf_str = "?"
 
-        cols = st.columns([0.35, 3, 0.6, 0.25, 0.25])
+        # Format valid_to
+        if vt_raw:
+            vt_str = f"{(vt_raw % 10000) // 100:02d}/{str(vt_raw)[:4][2:]}"
+        else:
+            vt_str = "..."
 
-        with cols[0]:
-            st.markdown(
-                f"<div style='text-align:center;padding:12px 0;font-size:14px;"
-                f"font-weight:600;color:{num_color};background:{row_bg};"
-                f"{border_btm}min-height:44px;line-height:20px;'>"
-                f"{idx + 1}</div>",
-                unsafe_allow_html=True,
-            )
-        with cols[1]:
-            st.markdown(
-                f"<div style='padding:12px 8px;font-size:14px;"
-                f"font-weight:{txt_weight};color:{txt_color};"
-                f"background:{row_bg};{border_btm}"
-                f"min-height:44px;line-height:20px;'>"
-                f"{display_name}</div>",
-                unsafe_allow_html=True,
-            )
-        with cols[2]:
-            new_vis = st.checkbox(
-                "Hiển thị", value=visible, key=f"pf_v{wv}_{key}",
-                label_visibility="collapsed",
-            )
-            if new_vis != visible:
-                st.session_state["pf_items"][idx]["visible"] = new_vis
-                st.session_state["pf_widget_ver"] = wv + 1
+        display = f"{makhoa} {name} ({vf_str} → {vt_str})"
+        options.append({
+            "short_name": name,
+            "makhoa": makhoa,
+            "display": display,
+            "valid_from": vf_raw,
+            "valid_to": vt_raw,
+            "thu_tu": thu_tu_raw,
+        })
+    return options
+
+
+# ─── Merge Khoa Tab UI ───────────────────────────────────────────────────────
+
+def _render_merge_tab():
+    """Render the department merge management tab."""
+
+    # ── Load data ──
+    if "merge_groups" not in st.session_state or st.session_state.get("merge_reload"):
+        st.session_state["merge_groups"] = _load_merge_groups()
+        st.session_state["merge_reload"] = False
+
+    groups = st.session_state["merge_groups"]
+    khoa_options = _load_khoa_options()
+    all_displays = [o["display"] for o in khoa_options]
+    display_to_name = {o["display"]: o["short_name"] for o in khoa_options}
+    display_to_option = {o["display"]: o for o in khoa_options}
+    # One short_name can have multiple display entries (different makhoa / validity)
+    name_to_displays: dict[str, list[str]] = {}
+    for o in khoa_options:
+        name_to_displays.setdefault(o["short_name"], []).append(o["display"])
+
+    if not khoa_options:
+        st.warning("Chưa có dữ liệu bảng Khoa. Vui lòng thêm dữ liệu trong tab Khoa trước.")
+        return
+
+    st.markdown(
+        f"<div style='font-size:13px;color:#64748b;margin-bottom:8px;'>"
+        f"Quản lý nhóm gộp khoa · <b>{len(groups)}</b> nhóm"
+        f"</div>",
+        unsafe_allow_html=True,
+    )
+
+    # ── Render each merge group as a card ──
+    changed = False
+    groups_to_delete = []
+
+    for gi, group in enumerate(groups):
+        with st.container(border=True):
+            col_target, col_del = st.columns([5, 1])
+
+            with col_target:
+                # Target khoa dropdown
+                # Find first matching display for target short_name
+                target_displays = name_to_displays.get(group["target_khoa"], [])
+                target_display = target_displays[0] if target_displays else group["target_khoa"]
+                target_idx = 0
+                if target_display in all_displays:
+                    target_idx = all_displays.index(target_display)
+
+                new_target_display = st.selectbox(
+                    "Khoa đích",
+                    all_displays,
+                    index=target_idx,
+                    key=f"merge_target_{gi}",
+                )
+                new_target = display_to_name.get(new_target_display, new_target_display)
+                if new_target != group["target_khoa"]:
+                    group["target_khoa"] = new_target
+                    # Reset selected displays when target changes
+                    ss_key_reset = f"merge_srcs_{gi}"
+                    if ss_key_reset in st.session_state:
+                        del st.session_state[ss_key_reset]
+                    changed = True
+
+            with col_del:
+                st.markdown("<div style='height:28px'></div>", unsafe_allow_html=True)
+                if st.button("🗑️ Xóa nhóm", key=f"merge_del_{gi}", use_container_width=True):
+                    groups_to_delete.append(gi)
+
+            # ── Determine target valid_from for smart source filtering ──
+            target_option = display_to_option.get(new_target_display)
+            target_valid_from = target_option["valid_from"] if target_option else None
+
+            # Source khoa – dynamic dropdown pattern
+            # Exclude target khoa and sources already used in other groups
+            other_group_sources = set()
+            for ogi, og in enumerate(groups):
+                if ogi != gi:
+                    other_group_sources.update(og["sources"])
+
+            # Filter: exclude target, exclude sources in other groups,
+            # and only show khoa that expired before target started
+            # or have no validity dates but have thu_tu
+            def _is_eligible_source(o: dict) -> bool:
+                if o["short_name"] == new_target:
+                    return False
+                if o["short_name"] in other_group_sources:
+                    return False
+                # If target has a valid_from, filter sources by validity
+                if target_valid_from:
+                    vt = o.get("valid_to")
+                    vf = o.get("valid_from")
+                    # Case 1: source has valid_to that is before target's valid_from
+                    if vt and vt < target_valid_from:
+                        return True
+                    # Case 2: no validity dates but has thu_tu
+                    if not vf and not vt and o.get("thu_tu"):
+                        return True
+                    return False
+                # No target valid_from → show all
+                return True
+
+            available_all = [o for o in khoa_options if _is_eligible_source(o)]
+
+            # ── Track selected displays independently in session state ──
+            ss_key = f"merge_srcs_{gi}"
+            if ss_key not in st.session_state:
+                # Init from saved group sources: one display per source
+                avail_display_set = {o["display"] for o in available_all}
+                init_displays = []
+                for s in group["sources"]:
+                    for d in name_to_displays.get(s, []):
+                        if d in avail_display_set:
+                            init_displays.append(d)
+                            break  # pick first available display per source
+                st.session_state[ss_key] = init_displays
+
+            selected_displays: list[str] = st.session_state[ss_key]
+
+            # ── Render each selected source as a row ──
+            st.markdown("**Gộp từ các khoa:**")
+            display_to_remove = None
+            for si, sel_d in enumerate(selected_displays):
+                c_label, c_del = st.columns([5, 1])
+                with c_label:
+                    st.markdown(
+                        f"<div style='background:#e8eaf6;border-radius:6px;"
+                        f"padding:6px 12px;margin-bottom:4px;font-size:14px;'>"
+                        f"{sel_d}</div>",
+                        unsafe_allow_html=True,
+                    )
+                with c_del:
+                    if st.button("✕", key=f"merge_src_del_{gi}_{si}"):
+                        display_to_remove = sel_d
+
+            # Handle removal — remove exact display entry only
+            if display_to_remove:
+                st.session_state[ss_key] = [
+                    d for d in selected_displays if d != display_to_remove
+                ]
+                # Sync short_names back to group
+                seen = set()
+                group["sources"] = []
+                for d in st.session_state[ss_key]:
+                    sn = display_to_name.get(d, d)
+                    if sn not in seen:
+                        seen.add(sn)
+                        group["sources"].append(sn)
+                st.session_state["merge_groups"] = groups
                 st.rerun()
-        with cols[3]:
-            if st.button("↑", key=f"pf_up{wv}_{key}", disabled=(idx == 0),
-                         use_container_width=True):
-                items[idx], items[idx - 1] = items[idx - 1], items[idx]
-                items[idx]["thu_tu"] = idx + 1
-                items[idx - 1]["thu_tu"] = idx
-                st.session_state["pf_items"] = items
-                st.session_state["pf_widget_ver"] = wv + 1
-                st.rerun()
-        with cols[4]:
-            if st.button("↓", key=f"pf_dn{wv}_{key}",
-                         disabled=(idx == len(items) - 1),
-                         use_container_width=True):
-                items[idx], items[idx + 1] = items[idx + 1], items[idx]
-                items[idx]["thu_tu"] = idx + 1
-                items[idx + 1]["thu_tu"] = idx + 2
-                st.session_state["pf_items"] = items
-                st.session_state["pf_widget_ver"] = wv + 1
-                st.rerun()
+
+            # ── Empty dropdown to add next source (sorted by makhoa) ──
+            already_shown = set(selected_displays)
+            remaining = sorted(
+                [o["display"] for o in available_all if o["display"] not in already_shown],
+                key=lambda d: display_to_option.get(d, {}).get("makhoa", d),
+            )
+
+            if remaining:
+                placeholder = "-- Chọn khoa để thêm --"
+                add_choice = st.selectbox(
+                    "Thêm khoa",
+                    [placeholder] + remaining,
+                    index=0,
+                    key=f"merge_src_add_{gi}",
+                    label_visibility="collapsed",
+                )
+                if add_choice != placeholder:
+                    selected_displays.append(add_choice)
+                    st.session_state[ss_key] = selected_displays
+                    # Sync short_names back to group
+                    sn = display_to_name.get(add_choice, add_choice)
+                    if sn not in group["sources"]:
+                        group["sources"].append(sn)
+                    st.session_state["merge_groups"] = groups
+                    st.rerun()
+
+    # Handle deletions
+    if groups_to_delete:
+        for gi in sorted(groups_to_delete, reverse=True):
+            groups.pop(gi)
+        st.session_state["merge_groups"] = groups
+        st.rerun()
+
+    # ── Add new group button ──
+    if st.button("➕ Thêm nhóm gộp mới", key="merge_add"):
+        groups.append({"target_khoa": khoa_options[0]["short_name"], "sources": []})
+        st.session_state["merge_groups"] = groups
+        st.rerun()
 
     # ── Save button ──
     st.markdown("---")
-    if st.button("💾 Lưu profile", key="pf_save", type="primary"):
-        try:
-            # Renumber thu_tu sequentially
-            for i, item in enumerate(items):
-                item["thu_tu"] = i + 1
-            _save_profile(selected, items)
-            st.success(f"✅ Đã lưu profile **{selected}** ({len(items)} chỉ tiêu)!")
-            st.cache_data.clear()
-            # Bump widget version to force fresh keys after save
-            st.session_state["pf_widget_ver"] = st.session_state.get("pf_widget_ver", 0) + 1
-        except Exception as e:
-            st.error(f"❌ Lỗi: {e}")
+    if st.button("💾 Lưu cấu hình gộp khoa", key="merge_save", type="primary"):
+        # Validate: no empty sources
+        valid = True
+        for g in groups:
+            if not g["sources"]:
+                st.error(f"Nhóm '{g['target_khoa']}' chưa có khoa nguồn nào!")
+                valid = False
+                break
+            # Check no overlap: source can't appear in multiple groups
+        all_sources = []
+        for g in groups:
+            for s in g["sources"]:
+                if s in all_sources:
+                    st.error(f"Khoa '{s}' xuất hiện trong nhiều nhóm gộp!")
+                    valid = False
+                    break
+                all_sources.append(s)
+            if not valid:
+                break
+
+        if valid:
+            try:
+                with st.spinner("⏳ Đang lưu cấu hình gộp khoa..."):
+                    _save_merge_groups(groups)
+                    st.cache_data.clear()
+                st.success(f"✅ Đã lưu {len(groups)} nhóm gộp khoa!")
+            except Exception as e:
+                st.error(f"❌ Lỗi: {e}")
 
 
 # ─── Main render ──────────────────────────────────────────────────────────────
@@ -554,12 +928,12 @@ def render():
     st.markdown("""
     <div class="main-header" style="background: linear-gradient(135deg, #059669, #0d9488);">
         <h1>⚙️ Cài đặt bảng mã</h1>
-        <p>Quản lý bảng lookup: Loại KCB · Cơ sở KCB · Khoa · Profiles</p>
+        <p>Quản lý bảng lookup: Loại KCB · Cơ sở KCB · Khoa · Profiles · Gộp khoa</p>
     </div>
     """, unsafe_allow_html=True)
 
     # ── Tab navigation ──
-    tab_names = list(TABLE_CONFIGS.keys()) + ["📊 Profiles"]
+    tab_names = list(TABLE_CONFIGS.keys()) + ["📊 Profiles", "🔀 Gộp khoa"]
     tabs = st.tabs(tab_names)
 
     # Lookup table tabs
@@ -594,11 +968,12 @@ def render():
             with col1:
                 if st.button(f"💾 Lưu", key=f"save_{table_name}", type="primary"):
                     try:
-                        num_rows = _save_table(table_name, edited_df, schema)
-                        st.session_state[data_key] = edited_df
+                        with st.spinner(f"⏳ Đang lưu `{table_name}`..."):
+                            num_rows = _save_table(table_name, edited_df, schema)
+                            st.session_state[data_key] = edited_df
+                            # Clear cache to reflect changes in overview
+                            st.cache_data.clear()
                         st.success(f"✅ Đã lưu {num_rows} dòng vào `{table_name}`!")
-                        # Clear cache to reflect changes in overview
-                        st.cache_data.clear()
                     except Exception as e:
                         st.error(f"❌ Lỗi: {e}")
             with col2:
@@ -607,5 +982,9 @@ def render():
                     st.rerun()
 
     # Profiles tab
-    with tabs[-1]:
+    with tabs[-2]:
         _render_profiles_tab()
+
+    # Merge Khoa tab
+    with tabs[-1]:
+        _render_merge_tab()

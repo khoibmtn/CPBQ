@@ -36,6 +36,14 @@ st.markdown("""
         font-family: 'Inter', sans-serif;
     }
 
+    /* Disable fade-out animation during rerun */
+    [data-stale="true"], .stale-element,
+    .element-container, .stMarkdown, .stDataFrame,
+    [data-testid="stVerticalBlockBorderWrapper"] {
+        opacity: 1 !important;
+        transition: none !important;
+    }
+
     /* ── Sidebar ── */
     [data-testid="stSidebar"] {
         background: linear-gradient(180deg, #2d3a5c 0%, #3b4874 100%);
@@ -224,11 +232,11 @@ st.markdown("""
 # ─── Sidebar Navigation (Page Menu) ──────────────────────────────────────────
 
 PAGES = [
-    {"key": "overview",        "label": "📊  Tổng quan",       "icon": "📊"},
-    {"key": "cost_by_dept",    "label": "🏥  CP theo khoa",    "icon": "🏥"},
-    {"key": "hospital_stats",  "label": "🏛️  Toàn viện",       "icon": "🏛️"},
-    {"key": "icd_analysis",    "label": "🔬  Phân tích ICD",   "icon": "🔬"},
-    {"key": "settings",        "label": "⚙️  Cài đặt",        "icon": "⚙️"},
+    {"key": "overview",        "label": "📊  Quản lý số liệu",      "icon": "📊"},
+    {"key": "hospital_stats",  "label": "🏛️  Số liệu tổng hợp",    "icon": "🏛️"},
+    {"key": "cost_by_dept",    "label": "🏥  Chi phí theo khoa",     "icon": "🏥"},
+    {"key": "icd_analysis",    "label": "🔬  Chi phí theo mã bệnh", "icon": "🔬"},
+    {"key": "settings",        "label": "⚙️  Cấu hình",             "icon": "⚙️"},
 ]
 
 st.sidebar.markdown("### 🏥 CPBQ Dashboard")

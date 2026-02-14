@@ -21,6 +21,7 @@ from google.cloud import bigquery
 from config import (
     PROJECT_ID, DATASET_ID, LOCATION, LOOKUP_FILE,
     LOOKUP_LOAIKCB_TABLE, LOOKUP_CSKCB_TABLE, LOOKUP_KHOA_TABLE,
+    LOOKUP_KHOA_MERGE_TABLE,
 )
 from auth import get_credentials
 
@@ -50,6 +51,10 @@ SCHEMAS = {
         bigquery.SchemaField("valid_from", "INT64"),
         bigquery.SchemaField("valid_to", "INT64"),
     ],
+    LOOKUP_KHOA_MERGE_TABLE: [
+        bigquery.SchemaField("target_khoa", "STRING"),
+        bigquery.SchemaField("source_khoa", "STRING"),
+    ],
 }
 
 # Mapping: BigQuery table name → (Excel sheet name, column rename dict)
@@ -57,6 +62,7 @@ SHEET_MAP = {
     LOOKUP_LOAIKCB_TABLE: ("loai_kcb", {"Mã loại": "ma_loaikcb"}),
     LOOKUP_CSKCB_TABLE:   ("ma_cskcb", {}),
     LOOKUP_KHOA_TABLE:    ("khoa", {}),
+    LOOKUP_KHOA_MERGE_TABLE: ("khoa_merge", {}),
 }
 
 

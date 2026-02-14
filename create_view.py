@@ -8,10 +8,10 @@ Tạo VIEW v_thanh_toan tự động JOIN data gốc với 3 bảng lookup,
 thêm 5 cột: ml2, ml4, ten_cskcb, khoa, ma_benh_chinh.
 
 Logic cột 'khoa':
-  - Ngoại trú + Khám bệnh        → "Khám bệnh (ten_cskcb)"
-  - Ngoại trú + ĐTNT + K35       → short_name từ bảng khoa
+  - Ngoại trú + Khám bệnh        → short_name từ bảng khoa (3 mức)
+  - Ngoại trú + ĐTNT + K35       → short_name từ bảng khoa (3 mức)
   - Ngoại trú + ĐTNT + khác K35  → "Điều trị ngoại trú"
-  - Nội trú                       → short_name từ bảng khoa
+  - Nội trú                       → short_name từ bảng khoa (3 mức)
 """
 
 from google.cloud import bigquery
@@ -50,14 +50,14 @@ SELECT
         -- Ngoại trú + Điều trị ngoại trú
         WHEN lk.ml4 = 'Điều trị ngoại trú' THEN
           CASE
-            WHEN t.ma_khoa = 'K35' THEN kp.short_name
+            WHEN t.ma_khoa = 'K35' THEN COALESCE(kp.short_name, kp2.short_name, t.ma_khoa)
             ELSE 'Điều trị ngoại trú'
           END
-        -- Ngoại trú + Khám bệnh (hoặc loại khác)
-        ELSE CONCAT('Khám bệnh (', IFNULL(cs.ten_cskcb, ''), ')')
+        -- Ngoại trú + Khám bệnh → lookup khoa (3 mức, giống Nội trú)
+        ELSE COALESCE(kp.short_name, kp2.short_name, t.ma_khoa)
       END
-    -- Nội trú → lookup khoa
-    ELSE kp.short_name
+    -- Nội trú → lookup khoa (3 mức ưu tiên)
+    ELSE COALESCE(kp.short_name, kp2.short_name, t.ma_khoa)
   END AS khoa,
   LEFT(t.ma_benh, 3) AS ma_benh_chinh
 
@@ -73,11 +73,17 @@ LEFT JOIN {ds}.{LOOKUP_CSKCB_TABLE}` cs
   ON t.ma_cskcb = CAST(cs.ma_cskcb AS STRING)
   AND {validity('cs')}
 
--- JOIN 3: Lookup khoa (short_name cho Nội trú và K35)
+-- JOIN 3: Lookup khoa - Mức 1: khớp theo thời gian hiệu lực
 LEFT JOIN {ds}.{LOOKUP_KHOA_TABLE}` kp
   ON t.ma_cskcb = CAST(kp.ma_cskcb AS STRING)
   AND t.ma_khoa = kp.makhoa_xml
   AND {validity('kp')}
+
+-- JOIN 4: Lookup khoa - Mức 2: tên mặc định (không có thời gian hiệu lực)
+LEFT JOIN {ds}.{LOOKUP_KHOA_TABLE}` kp2
+  ON t.ma_cskcb = CAST(kp2.ma_cskcb AS STRING)
+  AND t.ma_khoa = kp2.makhoa_xml
+  AND kp2.valid_from IS NULL AND kp2.valid_to IS NULL
 """
     return sql.strip()
 

@@ -149,7 +149,6 @@ def _get_available_khoa(periods_key: str, ml2_filter: str) -> list:
         SELECT DISTINCT khoa
         FROM `{PROJECT_ID}.{DATASET_ID}.{VIEW_ID}`
         WHERE ({where_ranges})
-          AND khoa IS NOT NULL
           {ml2_clause}
         ORDER BY khoa
     """
@@ -859,12 +858,19 @@ def render():
     )
 
     with col_ml2:
+        _ml2_default = 0
+        if "_saved_icd_ml2" in st.session_state:
+            sv = st.session_state._saved_icd_ml2
+            if sv in ml2_options:
+                _ml2_default = ml2_options.index(sv)
         selected_ml2 = st.selectbox(
             "🏥 Loại hình",
             ml2_options,
-            key="icd_ml2",
+            index=_ml2_default,
+            key="_wgt_icd_ml2",
             help="Chọn Nội trú, Ngoại trú hoặc Toàn BV",
         )
+        st.session_state._saved_icd_ml2 = selected_ml2
 
     ml2_filter = "all" if selected_ml2 == "Toàn BV" else selected_ml2
 
@@ -877,30 +883,52 @@ def render():
     khoa_options = ["Toàn Bệnh viện"] + available_khoa
 
     with col_khoa:
+        _khoa_default = 0
+        if "_saved_icd_khoa" in st.session_state:
+            sv = st.session_state._saved_icd_khoa
+            if sv in khoa_options:
+                _khoa_default = khoa_options.index(sv)
         selected_khoa = st.selectbox(
             "Thống kê theo khoa",
             khoa_options,
-            key="icd_khoa_filter",
+            index=_khoa_default,
+            key="_wgt_icd_khoa",
             help="Chọn khoa cụ thể hoặc Toàn Bệnh viện",
         )
+        st.session_state._saved_icd_khoa = selected_khoa
 
     khoa_filter = "all" if selected_khoa == "Toàn Bệnh viện" else selected_khoa
 
     with col_period:
+        _sp_default = 0
+        if "_saved_icd_sort_period" in st.session_state:
+            sv = st.session_state._saved_icd_sort_period
+            if sv in period_text_options:
+                _sp_default = period_text_options.index(sv)
         selected_period_text = st.selectbox(
             "Mốc thống kê",
             period_text_options,
-            key="icd_sort_period",
+            index=_sp_default,
+            key="_wgt_icd_sort_period",
             help="Chọn khoảng thời gian để sắp xếp và lọc tích lũy",
         )
+        st.session_state._saved_icd_sort_period = selected_period_text
 
     with col_cost:
+        _ct_default = 0
+        if "_saved_icd_cost_type" in st.session_state:
+            sv = st.session_state._saved_icd_cost_type
+            ct_options = ["Số lượt", "Tổng CP", "CP BHYT"]
+            if sv in ct_options:
+                _ct_default = ct_options.index(sv)
         cost_type_label = st.selectbox(
             "Loại thống kê",
             ["Số lượt", "Tổng CP", "CP BHYT"],
-            key="icd_cost_type",
+            index=_ct_default,
+            key="_wgt_icd_cost_type",
             help="Chọn loại thống kê để tính % và lọc tích lũy",
         )
+        st.session_state._saved_icd_cost_type = cost_type_label
 
     # Ratio: remember per ml2 type via session state
     ratio_ss_key = f"_icd_ratio_val_{selected_ml2}"
@@ -939,17 +967,24 @@ def render():
 
     with col_diff_sel:
         if has_diff:
+            _dm_default = 0
+            if "_saved_icd_diff_metric" in st.session_state:
+                sv = st.session_state._saved_icd_diff_metric
+                if sv in diff_options:
+                    _dm_default = diff_options.index(sv)
             diff_choice = st.selectbox(
                 "📊 Chênh lệch theo",
                 diff_options,
-                key="icd_diff_metric",
+                index=_dm_default,
+                key="_wgt_icd_diff_metric",
                 help="Chọn chỉ tiêu để tính chênh lệch giữa các khoảng thời gian",
             )
+            st.session_state._saved_icd_diff_metric = diff_choice
         else:
             st.selectbox(
                 "📊 Chênh lệch theo",
                 ["—"],
-                key="icd_diff_metric_disabled",
+                key="_wgt_icd_diff_metric_disabled",
                 disabled=True,
                 help="Cần ≥ 2 khoảng thời gian để so sánh",
             )
@@ -957,21 +992,25 @@ def render():
 
     with col_diff_toggle:
         if has_diff:
-            # Read current state to render label above toggle
-            current_dir = st.session_state.get("icd_diff_direction", False)
+            # Widget key is pre-populated by Streamlit on rerun, so it reflects the current state
+            current_dir = st.session_state.get(
+                "_wgt_icd_diff_dir",
+                st.session_state.get("_saved_icd_diff_dir", True),
+            )
             dir_label = "T-P" if current_dir else "P-T"
             st.markdown(
-                f"<div style='font-size:0.82rem;font-weight:400;color:inherit;"
+                f"<div style='font-size:0.82rem;font-weight:600;color:inherit;"
                 f"padding-bottom:0.45rem;'>{dir_label}</div>",
                 unsafe_allow_html=True,
             )
             diff_reverse = st.toggle(
                 "Hướng",
-                value=False,
-                key="icd_diff_direction",
+                value=st.session_state.get("_saved_icd_diff_dir", True),
+                key="_wgt_icd_diff_dir",
                 help="P-T: Cuối − Đầu · T-P: Đầu − Cuối",
                 label_visibility="collapsed",
             )
+            st.session_state._saved_icd_diff_dir = diff_reverse
 
     if diff_choice != "Không":
         diff_metric = diff_options_map[diff_choice]

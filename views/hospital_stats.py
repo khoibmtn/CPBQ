@@ -118,7 +118,6 @@ def _load_period_data_hospital(from_year: int, from_month: int,
             {sum_parts}
         FROM `{PROJECT_ID}.{DATASET_ID}.{VIEW_ID}`
         WHERE (nam_qt * 100 + thang_qt) BETWEEN {from_ym} AND {to_ym}
-          AND khoa IS NOT NULL
         GROUP BY ml2
     """
     return run_query(query)
@@ -726,17 +725,21 @@ def render():
     with col_ratio:
         show_ratio = st.checkbox(
             "Tỷ lệ %",
-            key="hs_show_ratio",
+            value=st.session_state.get("_saved_hs_ratio", False),
+            key="_wgt_hs_ratio",
             disabled=not can_compare,
             help="Thêm cột Tỷ lệ% so sánh khoảng cuối vs đầu" if can_compare else "Cần ≥ 2 khoảng thời gian",
         )
+        st.session_state._saved_hs_ratio = show_ratio
     with col_diff:
         show_diff = st.checkbox(
             "Chênh lệch",
-            key="hs_show_diff",
+            value=st.session_state.get("_saved_hs_diff", False),
+            key="_wgt_hs_diff",
             disabled=not can_compare,
             help="Thêm cột chênh lệch = giá trị cuối − giá trị đầu" if can_compare else "Cần ≥ 2 khoảng thời gian",
         )
+        st.session_state._saved_hs_diff = show_diff
     with col_dl:
         excel_buf = _export_to_excel(collected_periods, show_ratio=show_ratio, show_diff=show_diff)
         file_label = collected_periods[0]["period_text"] if collected_periods else "data"

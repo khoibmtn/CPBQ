@@ -8,7 +8,7 @@ import streamlit as st
 import pandas as pd
 from io import BytesIO
 from bq_helper import run_query, get_full_table_id
-from config import PROJECT_ID, DATASET_ID, VIEW_ID, LOOKUP_KHOA_TABLE, LOOKUP_CSKCB_TABLE, LOOKUP_PROFILES_TABLE
+from config import PROJECT_ID, DATASET_ID, VIEW_ID, LOOKUP_KHOA_TABLE, LOOKUP_CSKCB_TABLE, LOOKUP_PROFILES_TABLE, LOOKUP_KHOA_MERGE_TABLE
 from openpyxl import Workbook
 from openpyxl.styles import Font, Border, Side, Alignment
 from openpyxl.utils import get_column_letter
@@ -159,7 +159,6 @@ def _load_period_data_by_dept(from_year: int, from_month: int,
             {select_clause}
         FROM `{PROJECT_ID}.{DATASET_ID}.{VIEW_ID}`
         WHERE (nam_qt * 100 + thang_qt) BETWEEN {from_ym} AND {to_ym}
-          AND khoa IS NOT NULL
         GROUP BY ml2, khoa
         ORDER BY ml2, khoa
     """
@@ -283,33 +282,162 @@ def _sum_rows(rows: list, n_periods: int) -> list:
 def _load_khoa_order() -> dict:
     """Load khoa ordering mapping: khoa_name -> thu_tu.
 
-    Handles both direct short_name matches (Nội trú, Thận nhân tạo)
-    and derived 'Khám bệnh (...)' names (Ngoại trú Khám bệnh).
+    All khoa names (Nội trú, Ngoại trú Khám bệnh, Thận nhân tạo, etc.)
+    now resolve to short_name in lookup_khoa.
     'Điều trị ngoại trú' has no match and will sort last.
     """
     order_query = f"""
-        SELECT khoa_name, MIN(thu_tu) AS thu_tu FROM (
-            -- Nội trú + Ngoại trú K35: khoa = short_name
-            SELECT DISTINCT short_name AS khoa_name, thu_tu
-            FROM `{PROJECT_ID}.{DATASET_ID}.{LOOKUP_KHOA_TABLE}`
-            WHERE thu_tu IS NOT NULL
-            UNION ALL
-            -- Ngoại trú Khám bệnh: khoa = 'Khám bệnh (' + ten_cskcb + ')'
-            SELECT DISTINCT
-                CONCAT('Khám bệnh (', IFNULL(cs.ten_cskcb, ''), ')') AS khoa_name,
-                kp.thu_tu
-            FROM `{PROJECT_ID}.{DATASET_ID}.{LOOKUP_KHOA_TABLE}` kp
-            LEFT JOIN `{PROJECT_ID}.{DATASET_ID}.{LOOKUP_CSKCB_TABLE}` cs
-                ON CAST(kp.ma_cskcb AS STRING) = CAST(cs.ma_cskcb AS STRING)
-            WHERE kp.makhoa_xml = 'K01' AND kp.thu_tu IS NOT NULL
-        ) sub
-        GROUP BY khoa_name
+        SELECT short_name AS khoa_name, MIN(thu_tu) AS thu_tu
+        FROM `{PROJECT_ID}.{DATASET_ID}.{LOOKUP_KHOA_TABLE}`
+        WHERE thu_tu IS NOT NULL
+        GROUP BY short_name
     """
     try:
         order_df = run_query(order_query)
         return dict(zip(order_df["khoa_name"], order_df["thu_tu"]))
     except Exception:
         return {}
+
+
+# ── Merge helpers ─────────────────────────────────────────────────────────────
+
+
+@st.cache_data(ttl=300)
+def _load_merge_rules() -> dict:
+    """Load merge rules from lookup_khoa_merge.
+    Returns dict {source_khoa: target_khoa}.
+    Returns empty dict if table doesn't exist or is empty.
+    """
+    try:
+        full_id = get_full_table_id(LOOKUP_KHOA_MERGE_TABLE)
+        query = f"SELECT target_khoa, source_khoa FROM `{full_id}`"
+        df = run_query(query)
+        if df is None or df.empty:
+            return {}
+        return dict(zip(df["source_khoa"], df["target_khoa"]))
+    except Exception:
+        return {}
+
+
+def _apply_merge(df: pd.DataFrame, merge_rules: dict) -> pd.DataFrame:
+    """Apply merge rules to a period DataFrame.
+    Maps source khoa names to target khoa names, then re-groups.
+    """
+    if not merge_rules or df is None or df.empty:
+        return df
+
+    df = df.copy()
+    df["khoa"] = df["khoa"].map(lambda k: merge_rules.get(k, k))
+
+    # Identify sum-able numeric columns (exclude ml2, khoa)
+    sum_cols = [c for c in df.columns if c not in ("ml2", "khoa")]
+
+    # Re-group
+    df = df.groupby(["ml2", "khoa"], as_index=False)[sum_cols].sum()
+    return df
+
+
+def _build_merge_warning(periods: list, merge_rules: dict) -> str:
+    """Build warning message about department structure changes across periods.
+    Returns empty string if no changes detected.
+
+    Only shows warnings for merge groups where the target department
+    actually exists in at least one period's data (meaning the merge
+    is meaningful). Skips groups where the target doesn't exist in
+    any period (e.g., merging into a department not yet established).
+
+    Includes establishment date for target departments when available.
+    """
+    if not merge_rules or len(periods) < 2:
+        return ""
+
+    # Collect unique khoa names per period (BEFORE merge is applied)
+    period_khoas = []
+    for p in periods:
+        if p["data"] is not None and not p["data"].empty:
+            khoas = set(p["data"]["khoa"].unique())
+            period_khoas.append((p["period_text"], khoas))
+        else:
+            period_khoas.append((p["period_text"], set()))
+
+    # Build reverse rules: target -> [sources]
+    reverse_rules = {}
+    for src, tgt in merge_rules.items():
+        reverse_rules.setdefault(tgt, []).append(src)
+
+    # Query lookup_khoa for earliest valid_from per target short_name
+    target_names = list(reverse_rules.keys())
+    target_established: dict[str, str] = {}  # short_name -> "DD/MM/YYYY"
+    try:
+        full_id = get_full_table_id(LOOKUP_KHOA_TABLE)
+        names_csv = ", ".join(f"'{n}'" for n in target_names)
+        q = (
+            f"SELECT short_name, MIN(valid_from) AS vf "
+            f"FROM `{full_id}` "
+            f"WHERE short_name IN ({names_csv}) "
+            f"GROUP BY short_name"
+        )
+        vf_df = run_query(q)
+        if vf_df is not None and not vf_df.empty:
+            for _, row in vf_df.iterrows():
+                vf = row.get("vf")
+                if pd.notna(vf) and vf:
+                    vf_int = int(vf)
+                    if vf_int > 999999:  # YYYYMMDD format (8 digits)
+                        year = vf_int // 10000
+                        month = (vf_int % 10000) // 100
+                        day = vf_int % 100
+                    else:  # YYYYMM format (6 digits)
+                        year = vf_int // 100
+                        month = vf_int % 100
+                        day = 1
+                    target_established[row["short_name"]] = (
+                        f"{day:02d}/{month:02d}/{year}"
+                    )
+    except Exception:
+        pass
+
+    changes = []
+    for target, sources in reverse_rules.items():
+        # Check if target exists in ANY period's data
+        target_in_any_period = any(target in khoas for _, khoas in period_khoas)
+        if not target_in_any_period:
+            # Target department doesn't exist in any period → skip this group
+            continue
+
+        # Build establishment suffix if available
+        est_str = ""
+        if target in target_established:
+            est_str = f" (thành lập từ {target_established[target]})"
+
+        for period_text, khoas in period_khoas:
+            found_sources = [s for s in sources if s in khoas]
+            if found_sources:
+                src_text = ", ".join(found_sources)
+                # Check if target dept exists in THIS specific period
+                target_exists = target in khoas
+                if target_exists:
+                    # Target exists → sources merge INTO it
+                    changes.append(
+                        f"• Trong chu kỳ tháng **{period_text}**: "
+                        f"Số liệu khoa {src_text} gộp vào khoa **{target}**{est_str}"
+                    )
+                else:
+                    # Target doesn't exist in this period but exists in another
+                    changes.append(
+                        f"• Trong chu kỳ tháng **{period_text}**: "
+                        f"Số liệu {src_text} → gộp lại thành **{target}**{est_str}"
+                    )
+
+    if not changes:
+        return ""
+
+    msg = (
+        "⚠️ **Phát hiện thay đổi cấu trúc khoa giữa các khoảng thời gian:**\n\n"
+        + "\n\n".join(changes)
+        + "\n\n_Số liệu gộp có thể chưa chính xác nếu cấu trúc khoa thay đổi nhiều lần._"
+    )
+    return msg
 
 
 # ── Profile helpers ───────────────────────────────────────────────────────────
@@ -1257,31 +1385,84 @@ def render():
                 p["to_year"], p["to_month"],
             )
 
-    # ── Profile selector + ratio checkbox + download ──
+    # ── Profile selector + ratio checkbox + merge toggle + download ──
     profile_names = _load_profile_names_for_page()
     profile_options = ["Tất cả"] + profile_names
-    col_pf, col_ratio, col_diff, col_dl = st.columns([2, 1, 1, 1])
+
+    # Load merge rules to check if any exist
+    merge_rules = _load_merge_rules()
+    has_merge_rules = len(merge_rules) > 0
+
+    # ── Restore saved widget states ──
+    _pf_default = 0
+    if "_saved_cbd_profile" in st.session_state:
+        sv = st.session_state._saved_cbd_profile
+        if sv in profile_options:
+            _pf_default = profile_options.index(sv)
+
+    col_pf, col_ratio, col_diff, col_merge, col_dl = st.columns([2, 1, 1, 1, 1])
     with col_pf:
         selected_profile = st.selectbox(
             "📊 Profile hiển thị", profile_options,
-            key="cost_dept_profile",
+            index=_pf_default,
+            key="_wgt_cbd_profile",
             help="Chọn profile để lọc và sắp xếp các cột hiển thị",
         )
+        st.session_state._saved_cbd_profile = selected_profile
     can_compare = len(collected_periods) >= 2
     with col_ratio:
         show_ratio = st.checkbox(
             "Tỷ lệ %",
-            key="cost_dept_show_ratio",
+            value=st.session_state.get("_saved_cbd_ratio", False),
+            key="_wgt_cbd_ratio",
             disabled=not can_compare,
             help="Thêm cột Tỷ lệ% so sánh khoảng cuối vs đầu" if can_compare else "Cần ≥ 2 khoảng thời gian",
         )
+        st.session_state._saved_cbd_ratio = show_ratio
     with col_diff:
         show_diff = st.checkbox(
             "Chênh lệch",
-            key="cost_dept_show_diff",
+            value=st.session_state.get("_saved_cbd_diff", False),
+            key="_wgt_cbd_diff",
             disabled=not can_compare,
             help="Thêm cột chênh lệch = giá trị cuối − giá trị đầu" if can_compare else "Cần ≥ 2 khoảng thời gian",
         )
+        st.session_state._saved_cbd_diff = show_diff
+    with col_merge:
+        show_merge = st.checkbox(
+            "Gộp khoa",
+            value=st.session_state.get("_saved_cbd_merge", False),
+            key="_wgt_cbd_merge",
+            disabled=not has_merge_rules,
+            help="Gộp các khoa đã sáp nhập/chia tách theo cấu hình" if has_merge_rules else "Chưa có cấu hình gộp khoa (Cài đặt → Gộp khoa)",
+        )
+        st.session_state._saved_cbd_merge = show_merge
+
+    # Apply merge if toggled ON
+    if show_merge and has_merge_rules:
+        # Build warning BEFORE applying merge (need original data to detect)
+        warning_msg = _build_merge_warning(collected_periods, merge_rules)
+
+        # Filter merge rules: only keep rules whose TARGET department
+        # exists in at least one period's raw data.  This prevents
+        # creating phantom rows for departments that haven't been
+        # established yet in the selected time range.
+        all_khoas_in_data = set()
+        for p in collected_periods:
+            if p["data"] is not None and not p["data"].empty:
+                all_khoas_in_data.update(p["data"]["khoa"].unique())
+
+        filtered_rules = {
+            src: tgt for src, tgt in merge_rules.items()
+            if tgt in all_khoas_in_data
+        }
+
+        # Apply filtered merge to all periods
+        for p in collected_periods:
+            p["data"] = _apply_merge(p["data"], filtered_rules)
+        # Show warning
+        if warning_msg:
+            st.warning(warning_msg)
 
     chosen = None if selected_profile == "Tất cả" else selected_profile
     active_columns = _get_active_columns(chosen)

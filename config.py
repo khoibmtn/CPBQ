@@ -14,6 +14,7 @@ LOOKUP_LOAIKCB_TABLE = "lookup_loaikcb"
 LOOKUP_CSKCB_TABLE = "lookup_cskcb"
 LOOKUP_KHOA_TABLE = "lookup_khoa"
 LOOKUP_PROFILES_TABLE = "lookup_profiles"
+LOOKUP_KHOA_MERGE_TABLE = "lookup_khoa_merge"
 
 # VIEW (enriched data)
 VIEW_ID = "v_thanh_toan"
