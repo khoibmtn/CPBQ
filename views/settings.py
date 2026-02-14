@@ -396,10 +396,10 @@ def _render_profiles_tab():
     with hdr_left:
         st.markdown(
             f"<div style='margin-bottom:2px;'>"
-            f"<span style='font-size:18px;font-weight:700;color:#1e293b;'>"
+            f"<span style='font-size:18px;font-weight:700;color:#e2e8f0;'>"
             f"Profile: {selected}</span></div>"
-            f"<div style='font-size:13px;color:#64748b;margin-bottom:8px;'>"
-            f"Đã chọn <b>{visible_count}</b> / {total_count} chỉ tiêu hiển thị</div>",
+            f"<div style='font-size:13px;color:#94a3b8;margin-bottom:8px;'>"
+            f"Đã chọn <b style='color:#cbd5e1;'>{visible_count}</b> / {total_count} chỉ tiêu hiển thị</div>",
             unsafe_allow_html=True,
         )
     with hdr_right:
@@ -425,11 +425,11 @@ def _render_profiles_tab():
             key=toggle_key, on_change=_on_toggle_all,
         )
 
-    # ── Table header (blue gradient) ──
+    # ── Table header ──
     st.markdown(
         "<div style='display:flex;align-items:center;padding:10px 16px;"
-        "background:linear-gradient(135deg,#1e3a8a,#2563eb);"
-        "border-radius:8px 8px 0 0;color:#fff;"
+        "background:#1e293b;"
+        "border-radius:8px 8px 0 0;color:#cbd5e1;"
         "font-size:12px;font-weight:600;letter-spacing:0.8px;"
         "text-transform:uppercase;'>"
         "<span style='width:50px;text-align:center;'>STT</span>"
@@ -445,6 +445,39 @@ def _render_profiles_tab():
     checked.sort(key=lambda x: x.get("thu_tu", 0))
     unchecked.sort(key=lambda x: x.get("default_order", 999))
     display_items = checked + unchecked
+
+    # ── CSS overrides for checkbox & button contrast ──
+    st.markdown("""
+    <style>
+    /* ── Profile tab typography overrides ── */
+    
+    /* Base: all checkbox labels in Slate 400 (unchecked) */
+    div[data-testid="stCheckbox"] p {
+        color: #94a3b8 !important;
+        font-weight: 400 !important;
+    }
+    /* Checked checkboxes: near-white text via :has() on label */
+    div[data-testid="stCheckbox"] label:has(input[aria-checked="true"]) p,
+    div[data-testid="stCheckbox"] label:has(input:checked) p {
+        color: #f1f5f9 !important;
+        font-weight: 600 !important;
+    }
+    /* Toggle label ("Chọn tất cả") */
+    div[data-testid="stToggle"] label p,
+    div[data-testid="stToggle"] p {
+        color: #cbd5e1 !important;
+    }
+    /* ↑↓ arrow buttons */
+    button[kind="secondary"] {
+        color: #cbd5e1 !important;
+        border-color: #475569 !important;
+    }
+    button[kind="secondary"]:hover {
+        color: #f1f5f9 !important;
+        border-color: #60a5fa !important;
+    }
+    </style>
+    """, unsafe_allow_html=True)
 
     # ── Scrollable row list ──
     with st.container(height=480):
@@ -462,15 +495,19 @@ def _render_profiles_tab():
             if visible:
                 ck_stt += 1
                 stt_num = ck_stt
-                # Checked row styling: blue tint alternating
-                nc = "#2563eb"
+                # Checked row: bright accent STT
+                nc = "#60a5fa"
                 nw = "700"
+                name_color = "#f1f5f9"
+                name_weight = "600"
             else:
                 uc_stt += 1
                 stt_num = uc_stt
-                # Unchecked row styling: neutral
-                nc = "#94a3b8"
+                # Unchecked row: muted but readable
+                nc = "#64748b"
                 nw = "400"
+                name_color = "#64748b"
+                name_weight = "400"
 
             # Columns: STT | Checkbox+Name | (↑ | ↓) or empty
             if visible:
@@ -539,7 +576,7 @@ def _render_profiles_tab():
 
             # Row divider
             st.markdown(
-                "<div style='border-bottom:1px solid #d9dfe8;'></div>",
+                "<div style='border-bottom:1px solid #334155;'></div>",
                 unsafe_allow_html=True,
             )
 
@@ -925,12 +962,12 @@ def _render_merge_tab():
 def render():
     """Render trang Cài đặt."""
 
-    st.markdown("""
-    <div class="main-header" style="background: linear-gradient(135deg, #059669, #0d9488);">
-        <h1>⚙️ Cài đặt bảng mã</h1>
-        <p>Quản lý bảng lookup: Loại KCB · Cơ sở KCB · Khoa · Profiles · Gộp khoa</p>
-    </div>
-    """, unsafe_allow_html=True)
+    from tw_components import page_header
+    st.markdown(page_header(
+        "Cài đặt bảng mã",
+        subtitle="Quản lý bảng lookup: Loại KCB · Cơ sở KCB · Khoa · Profiles · Gộp khoa",
+        icon="⚙️",
+    ), unsafe_allow_html=True)
 
     # ── Tab navigation ──
     tab_names = list(TABLE_CONFIGS.keys()) + ["📊 Profiles", "🔀 Gộp khoa"]

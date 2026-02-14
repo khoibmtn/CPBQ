@@ -71,12 +71,12 @@ def _remove_period(period_id: int):
 # ── Colors ────────────────────────────────────────────────────────────────────
 
 PERIOD_COLORS = [
-    {"bg": "rgba(37, 99, 235, 0.12)", "border": "#2563eb", "label": "#93c5fd"},
-    {"bg": "rgba(234, 88, 12, 0.12)", "border": "#ea580c", "label": "#fdba74"},
-    {"bg": "rgba(22, 163, 74, 0.12)", "border": "#16a34a", "label": "#86efac"},
-    {"bg": "rgba(147, 51, 234, 0.12)", "border": "#9333ea", "label": "#c4b5fd"},
-    {"bg": "rgba(220, 38, 38, 0.12)", "border": "#dc2626", "label": "#fca5a5"},
-    {"bg": "rgba(13, 148, 136, 0.12)", "border": "#0d9488", "label": "#5eead4"},
+    {"bg": "rgba(59,130,246,0.10)",  "border": "#3b82f6",  "label": "#93c5fd"},   # Blue 500
+    {"bg": "rgba(99,102,241,0.10)",  "border": "#6366f1",  "label": "#a5b4fc"},   # Indigo 500
+    {"bg": "rgba(14,165,233,0.10)",  "border": "#0ea5e9",  "label": "#7dd3fc"},   # Sky 500
+    {"bg": "rgba(139,92,246,0.10)",  "border": "#8b5cf6",  "label": "#c4b5fd"},   # Violet 500
+    {"bg": "rgba(6,182,212,0.10)",   "border": "#06b6d4",  "label": "#67e8f9"},   # Cyan 500
+    {"bg": "rgba(79,70,229,0.10)",   "border": "#4f46e5",  "label": "#a5b4fc"},   # Indigo 600
 ]
 
 
@@ -303,8 +303,8 @@ def _render_icd_table(periods: list, icd_list: list, cost_type: str,
         color: #f8fafc !important;
         font-weight: 700;
     }
-    .icd-table .diff-pos { color: #4ade80; }
-    .icd-table .diff-neg { color: #f87171; }
+    .icd-table .diff-pos { color: #86efac; }
+    .icd-table .diff-neg { color: #fca5a5; }
     </style>
     """
 
@@ -325,7 +325,7 @@ def _render_icd_table(periods: list, icd_list: list, cost_type: str,
         html += f'<th class="grp-header" colspan="{cols_per_period}" style="background-color:{bg};">{p["period_text"]}</th>'
     if show_diff:
         diff_dir_label = "T-P" if diff_reverse else "P-T"
-        html += f'<th class="grp-header" colspan="2" style="background-color:#6d28d9;">Chênh lệch ({diff_dir_label})</th>'
+        html += f'<th class="grp-header" colspan="2" style="background-color:#475569;">Chênh lệch ({diff_dir_label})</th>'
     html += "</tr>"
 
     # ── HEADER ROW 2 ──
@@ -335,8 +335,8 @@ def _render_icd_table(periods: list, icd_list: list, cost_type: str,
         for cl in col_labels:
             html += f'<th class="sub-header" style="background-color:{bg};">{cl}</th>'
     if show_diff:
-        html += f'<th class="sub-header" style="background-color:#6d28d9;">{diff_value_label}</th>'
-        html += '<th class="sub-header" style="background-color:#6d28d9;">%</th>'
+        html += f'<th class="sub-header" style="background-color:#475569;">{diff_value_label}</th>'
+        html += '<th class="sub-header" style="background-color:#475569;">%</th>'
     html += "</tr>"
     html += "</thead>"
 
@@ -680,12 +680,12 @@ def _export_icd_to_excel(periods: list, icd_list: list, cost_type: str,
 # ── Main render ───────────────────────────────────────────────────────────────
 
 def render():
-    st.markdown("""
-    <div class="main-header" style="background: linear-gradient(135deg, #7c3aed, #4f46e5);">
-        <h1>🔬 Phân tích ICD</h1>
-        <p>Thống kê chi phí theo mã bệnh chính · Lọc tích lũy theo tỷ lệ %</p>
-    </div>
-    """, unsafe_allow_html=True)
+    from tw_components import page_header
+    st.markdown(page_header(
+        "Phân tích ICD",
+        subtitle="Thống kê chi phí theo mã bệnh chính · Lọc tích lũy theo tỷ lệ %",
+        icon="🔬",
+    ), unsafe_allow_html=True)
 
     # Load available year-months
     ym_df = _get_available_year_months()

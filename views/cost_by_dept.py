@@ -81,12 +81,12 @@ def _remove_period(period_id: int):
 # ── Colors for each period ────────────────────────────────────────────────────
 
 PERIOD_COLORS = [
-    {"bg": "rgba(37, 99, 235, 0.12)", "border": "#2563eb", "label": "#93c5fd"},  # Blue
-    {"bg": "rgba(234, 88, 12, 0.12)", "border": "#ea580c", "label": "#fdba74"},  # Orange
-    {"bg": "rgba(22, 163, 74, 0.12)", "border": "#16a34a", "label": "#86efac"},  # Green
-    {"bg": "rgba(147, 51, 234, 0.12)", "border": "#9333ea", "label": "#c4b5fd"},  # Purple
-    {"bg": "rgba(220, 38, 38, 0.12)", "border": "#dc2626", "label": "#fca5a5"},  # Red
-    {"bg": "rgba(13, 148, 136, 0.12)", "border": "#0d9488", "label": "#5eead4"},  # Teal
+    {"bg": "rgba(59,130,246,0.10)",  "border": "#3b82f6",  "label": "#93c5fd"},   # Blue 500
+    {"bg": "rgba(99,102,241,0.10)",  "border": "#6366f1",  "label": "#a5b4fc"},   # Indigo 500
+    {"bg": "rgba(14,165,233,0.10)",  "border": "#0ea5e9",  "label": "#7dd3fc"},   # Sky 500
+    {"bg": "rgba(139,92,246,0.10)",  "border": "#8b5cf6",  "label": "#c4b5fd"},   # Violet 500
+    {"bg": "rgba(6,182,212,0.10)",   "border": "#06b6d4",  "label": "#67e8f9"},   # Cyan 500
+    {"bg": "rgba(79,70,229,0.10)",   "border": "#4f46e5",  "label": "#a5b4fc"},   # Indigo 600
 ]
 
 
@@ -226,10 +226,10 @@ def _fmt_pct_change(first_val, last_val) -> str:
         return ""
     pct = (last_val / first_val - 1) * 100
     if pct > 0:
-        color = "#4ade80"  # green
+        color = "#86efac"  # green (muted)
         sign = "+"
     elif pct < 0:
-        color = "#f87171"  # red
+        color = "#fca5a5"  # red (muted)
         sign = ""
     else:
         color = "#94a3b8"  # gray
@@ -247,9 +247,9 @@ def _fmt_diff(first_val, last_val) -> str:
     if diff == 0:
         return "-"
     if diff > 0:
-        color, sign = "#4ade80", "+"
+        color, sign = "#86efac", "+"
     else:
-        color, sign = "#f87171", ""
+        color, sign = "#fca5a5", ""
     if isinstance(diff, float) and abs(diff) < 100:
         txt = f"{sign}{diff:.2f}"
     else:
@@ -695,9 +695,9 @@ def _render_comparison_table(periods: list, columns=None, show_ratio=False, show
             bg = p["color"]["border"]
             html += f'<th class="sub-header" style="background-color:{bg};">{p["period_text"]}</th>'
         if show_diff:
-            html += '<th class="sub-header" style="background-color:#d97706;">Chênh lệch</th>'
+            html += '<th class="sub-header" style="background-color:#475569;">Chênh lệch</th>'
         if show_ratio:
-            html += '<th class="sub-header" style="background-color:#7c3aed;">Tỷ lệ%</th>'
+            html += '<th class="sub-header" style="background-color:#334155;">Tỷ lệ%</th>'
     html += "</tr>"
     html += "</thead>"
 
@@ -1187,12 +1187,12 @@ def _export_to_excel(periods: list, columns=None, show_ratio=False, show_diff=Fa
 def render():
     """Render trang Chi phí theo khoa."""
 
-    st.markdown("""
-    <div class="main-header" style="background: linear-gradient(135deg, #16a34a, #0d9488);">
-        <h1>🏥 Chi phí theo khoa</h1>
-        <p>So sánh chi phí giữa các khoảng thời gian theo khoa · phòng</p>
-    </div>
-    """, unsafe_allow_html=True)
+    from tw_components import page_header
+    st.markdown(page_header(
+        "Chi phí theo khoa",
+        subtitle="So sánh chi phí giữa các khoảng thời gian theo khoa · phòng",
+        icon="🏥",
+    ), unsafe_allow_html=True)
 
     # Load available year-months
     ym_df = _get_available_year_months()
