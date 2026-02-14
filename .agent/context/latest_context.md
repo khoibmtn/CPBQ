@@ -29,3 +29,10 @@
 - Data from BigQuery view `v_thanh_toan` grouped by ml2 (Ngoại trú / Nội trú) then by khoa
 - Profiles stored in `lookup_profiles` BigQuery table, define column order via `thu_tu`
 - Column types: `metric` (direct fields), `bq` (calculated averages), `ratio` (numerator/denominator)
+
+## Roadmap (ghi nhận 2026-02-14)
+1. **Gộp khoa (dưới dạng profile)** — Thêm chức năng gộp nhiều khoa thành nhóm, quản lý bằng profile
+2. **Page "Số liệu toàn viện"** — Trang tổng hợp số liệu toàn bệnh viện
+3. **Page "ICD"** — Trang tra cứu/thống kê theo mã ICD
+4. **Page "Dự kiến chi"** — Trang dự kiến chi phí
+5. **Page "Biểu đồ"** — Trang hiển thị biểu đồ trực quan

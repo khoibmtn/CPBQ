@@ -224,9 +224,11 @@ st.markdown("""
 # ─── Sidebar Navigation (Page Menu) ──────────────────────────────────────────
 
 PAGES = [
-    {"key": "overview",      "label": "📊  Tổng quan",     "icon": "📊"},
-    {"key": "cost_by_dept",  "label": "🏥  CP theo khoa",  "icon": "🏥"},
-    {"key": "settings",      "label": "⚙️  Cài đặt",      "icon": "⚙️"},
+    {"key": "overview",        "label": "📊  Tổng quan",       "icon": "📊"},
+    {"key": "cost_by_dept",    "label": "🏥  CP theo khoa",    "icon": "🏥"},
+    {"key": "hospital_stats",  "label": "🏛️  Toàn viện",       "icon": "🏛️"},
+    {"key": "icd_analysis",    "label": "🔬  Phân tích ICD",   "icon": "🔬"},
+    {"key": "settings",        "label": "⚙️  Cài đặt",        "icon": "⚙️"},
 ]
 
 st.sidebar.markdown("### 🏥 CPBQ Dashboard")
@@ -254,6 +256,12 @@ if st.session_state.current_page == "overview":
     render()
 elif st.session_state.current_page == "cost_by_dept":
     from views.cost_by_dept import render
+    render()
+elif st.session_state.current_page == "hospital_stats":
+    from views.hospital_stats import render
+    render()
+elif st.session_state.current_page == "icd_analysis":
+    from views.icd_analysis import render
     render()
 elif st.session_state.current_page == "settings":
     from views.settings import render

@@ -238,6 +238,35 @@ def _fmt_pct_change(first_val, last_val) -> str:
     return f'<span style="color:{color};font-weight:600;">{sign}{pct:.1f}%</span>'
 
 
+def _fmt_diff(first_val, last_val) -> str:
+    """Format difference: last - first. Colored green/red."""
+    if first_val is None:
+        first_val = 0
+    if last_val is None:
+        last_val = 0
+    diff = last_val - first_val
+    if diff == 0:
+        return "-"
+    if diff > 0:
+        color, sign = "#4ade80", "+"
+    else:
+        color, sign = "#f87171", ""
+    if isinstance(diff, float) and abs(diff) < 100:
+        txt = f"{sign}{diff:.2f}"
+    else:
+        txt = f"{sign}{diff:,.0f}"
+    return f'<span style="color:{color};font-weight:600;">{txt}</span>'
+
+
+def _diff_raw(first_val, last_val):
+    """Raw diff value for Excel."""
+    if first_val is None:
+        first_val = 0
+    if last_val is None:
+        last_val = 0
+    return last_val - first_val
+
+
 def _sum_rows(rows: list, n_periods: int) -> list:
     """Tính tổng các dòng dữ liệu cho mỗi period. Returns list of dicts (one per period)."""
     result = []
@@ -390,7 +419,7 @@ def _get_active_columns(profile_name: str) -> list:
     return columns
 
 
-def _render_comparison_table(periods: list, columns=None, show_ratio=False):
+def _render_comparison_table(periods: list, columns=None, show_ratio=False, show_diff=False):
     """Render bảng so sánh: hàng = khoa (nhóm Ngoại trú → Nội trú),
     cột = nhóm tiêu chí × khoảng thời gian."""
 
@@ -398,8 +427,9 @@ def _render_comparison_table(periods: list, columns=None, show_ratio=False):
     cols = columns if columns is not None else DEFAULT_COLUMNS
 
     n_periods = len(periods)
-    # Only show ratio column when there are 2+ periods
+    # Only show ratio/diff columns when there are 2+ periods
     show_ratio = show_ratio and n_periods >= 2
+    show_diff = show_diff and n_periods >= 2
 
     # ── Load khoa ordering ──
     khoa_order = _load_khoa_order()
@@ -522,7 +552,7 @@ def _render_comparison_table(periods: list, columns=None, show_ratio=False):
     html += "<tr>"
     html += '<th class="grp-header" rowspan="2" style="width:40px;">TT</th>'
     html += '<th class="grp-header" rowspan="2">Khoa</th>'
-    col_span = n_periods + (1 if show_ratio else 0)
+    col_span = n_periods + (1 if show_diff else 0) + (1 if show_ratio else 0)
     for col in cols:
         label = col["name"]
         if col.get("noi_only"):
@@ -536,6 +566,8 @@ def _render_comparison_table(periods: list, columns=None, show_ratio=False):
         for i, p in enumerate(periods):
             bg = p["color"]["border"]
             html += f'<th class="sub-header" style="background-color:{bg};">{p["period_text"]}</th>'
+        if show_diff:
+            html += '<th class="sub-header" style="background-color:#d97706;">Chênh lệch</th>'
         if show_ratio:
             html += '<th class="sub-header" style="background-color:#7c3aed;">Tỷ lệ%</th>'
     html += "</tr>"
@@ -587,10 +619,14 @@ def _render_comparison_table(periods: list, columns=None, show_ratio=False):
                         num_val = pd_row.get(col["num_field"], 0) if pd_row else 0
                         den_val = pd_row.get(col["den_field"], 0) if pd_row else 0
                         html += f"<td>{_calc_ratio(num_val, den_val, col['fmt'])}</td>"
+                if show_diff:
+                    first_val = _get_col_raw_value(col, period_data_list[0])
+                    last_val = _get_col_raw_value(col, period_data_list[-1])
+                    html += f"<td>{_fmt_diff(first_val, last_val)}</td>"
                 if show_ratio:
                     first_val = _get_col_raw_value(col, period_data_list[0])
                     last_val = _get_col_raw_value(col, period_data_list[-1])
-                    html += f"<td style='text-align:center;'>{_fmt_pct_change(first_val, last_val)}</td>"
+                    html += f"<td>{_fmt_pct_change(first_val, last_val)}</td>"
 
             html += "</tr>"
             dept_rows_data.append(period_data_list)
@@ -625,10 +661,14 @@ def _render_comparison_table(periods: list, columns=None, show_ratio=False):
                 num_val = ngoai_totals[pi].get(col["num_field"], 0) if pi < len(ngoai_totals) else 0
                 den_val = ngoai_totals[pi].get(col["den_field"], 0) if pi < len(ngoai_totals) else 0
                 html += f"<td>{_calc_ratio(num_val, den_val, col['fmt'])}</td>"
+        if show_diff:
+            first_val = _get_col_raw_value(col, ngoai_totals[0] if 0 < len(ngoai_totals) else {})
+            last_val = _get_col_raw_value(col, ngoai_totals[-1] if ngoai_totals else {})
+            html += f"<td>{_fmt_diff(first_val, last_val)}</td>"
         if show_ratio:
             first_val = _get_col_raw_value(col, ngoai_totals[0] if 0 < len(ngoai_totals) else {})
             last_val = _get_col_raw_value(col, ngoai_totals[-1] if ngoai_totals else {})
-            html += f"<td style='text-align:center;'>{_fmt_pct_change(first_val, last_val)}</td>"
+            html += f"<td>{_fmt_pct_change(first_val, last_val)}</td>"
     html += "</tr>"
 
     # Row: 2. Nội trú subtotal
@@ -650,10 +690,14 @@ def _render_comparison_table(periods: list, columns=None, show_ratio=False):
                 num_val = noi_totals[pi].get(col["num_field"], 0) if pi < len(noi_totals) else 0
                 den_val = noi_totals[pi].get(col["den_field"], 0) if pi < len(noi_totals) else 0
                 html += f"<td>{_calc_ratio(num_val, den_val, col['fmt'])}</td>"
+        if show_diff:
+            first_val = _get_col_raw_value(col, noi_totals[0] if 0 < len(noi_totals) else {})
+            last_val = _get_col_raw_value(col, noi_totals[-1] if noi_totals else {})
+            html += f"<td>{_fmt_diff(first_val, last_val)}</td>"
         if show_ratio:
             first_val = _get_col_raw_value(col, noi_totals[0] if 0 < len(noi_totals) else {})
             last_val = _get_col_raw_value(col, noi_totals[-1] if noi_totals else {})
-            html += f"<td style='text-align:center;'>{_fmt_pct_change(first_val, last_val)}</td>"
+            html += f"<td>{_fmt_pct_change(first_val, last_val)}</td>"
     html += "</tr>"
 
     # Row: Grand total (Ngoại trú + Nội trú)
@@ -695,24 +739,29 @@ def _render_comparison_table(periods: list, columns=None, show_ratio=False):
                 total_num = (ngoai_num or 0) + (noi_num or 0)
                 total_den = (ngoai_den or 0) + (noi_den or 0)
                 html += f"<td>{_calc_ratio(total_num, total_den, col['fmt'])}</td>"
+        if show_diff:
+            first_val = _get_col_raw_value(col, combined_totals[0] if combined_totals else {})
+            last_val = _get_col_raw_value(col, combined_totals[-1] if combined_totals else {})
+            html += f"<td>{_fmt_diff(first_val, last_val)}</td>"
         if show_ratio:
             first_val = _get_col_raw_value(col, combined_totals[0] if combined_totals else {})
             last_val = _get_col_raw_value(col, combined_totals[-1] if combined_totals else {})
-            html += f"<td style='text-align:center;'>{_fmt_pct_change(first_val, last_val)}</td>"
+            html += f"<td>{_fmt_pct_change(first_val, last_val)}</td>"
     html += "</tr>"
 
     html += "</tbody></table>"
     st.markdown(html, unsafe_allow_html=True)
 
 
-def _export_to_excel(periods: list, columns=None, show_ratio=False) -> BytesIO:
+def _export_to_excel(periods: list, columns=None, show_ratio=False, show_diff=False) -> BytesIO:
     """Generate an Excel workbook matching the displayed comparison table.
     Returns a BytesIO buffer containing the .xlsx file."""
 
     cols = columns if columns is not None else DEFAULT_COLUMNS
     n_periods = len(periods)
     show_ratio = show_ratio and n_periods >= 2
-    col_span = n_periods + (1 if show_ratio else 0)
+    show_diff = show_diff and n_periods >= 2
+    col_span = n_periods + (1 if show_diff else 0) + (1 if show_ratio else 0)
 
     # ── Load khoa ordering & group data (same logic as _render_comparison_table) ──
     khoa_order = _load_khoa_order()
@@ -770,6 +819,13 @@ def _export_to_excel(periods: list, columns=None, show_ratio=False) -> BytesIO:
         sign = "+" if pct > 0 else ""
         return f"{sign}{pct:.1f}%"
 
+    def _diff_cell_value(first_val, last_val):
+        """Return raw diff value for Excel."""
+        f = first_val if first_val else 0
+        l = last_val if last_val else 0
+        diff = l - f
+        return diff if diff != 0 else ""
+
     def _col_cell_value(col, pd_row):
         """Compute the display value for a column + data row."""
         if pd_row is None:
@@ -825,6 +881,9 @@ def _export_to_excel(periods: list, columns=None, show_ratio=False) -> BytesIO:
         for p in periods:
             _cell(row, data_col, p["period_text"], font_header, align_center)
             data_col += 1
+        if show_diff:
+            _cell(row, data_col, "Chênh lệch", font_header, align_center)
+            data_col += 1
         if show_ratio:
             _cell(row, data_col, "Tỷ lệ%", font_header, align_center)
             data_col += 1
@@ -866,6 +925,11 @@ def _export_to_excel(periods: list, columns=None, show_ratio=False) -> BytesIO:
                     val = _col_cell_value(col, pd_row)
                     _cell(row, data_col, val, font_normal, align_right)
                     data_col += 1
+                if show_diff:
+                    first_val = _get_col_raw_value(col, period_data_list[0])
+                    last_val = _get_col_raw_value(col, period_data_list[-1])
+                    _cell(row, data_col, _diff_cell_value(first_val, last_val), font_normal, align_right)
+                    data_col += 1
                 if show_ratio:
                     first_val = _get_col_raw_value(col, period_data_list[0])
                     last_val = _get_col_raw_value(col, period_data_list[-1])
@@ -895,6 +959,11 @@ def _export_to_excel(periods: list, columns=None, show_ratio=False) -> BytesIO:
             val = _col_cell_value(col, ngoai_totals[pi] if pi < len(ngoai_totals) else None)
             _cell(row, data_col, val, font_bold, align_right)
             data_col += 1
+        if show_diff:
+            first_val = _get_col_raw_value(col, ngoai_totals[0] if 0 < len(ngoai_totals) else {})
+            last_val = _get_col_raw_value(col, ngoai_totals[-1] if ngoai_totals else {})
+            _cell(row, data_col, _diff_cell_value(first_val, last_val), font_bold, align_right)
+            data_col += 1
         if show_ratio:
             first_val = _get_col_raw_value(col, ngoai_totals[0] if 0 < len(ngoai_totals) else {})
             last_val = _get_col_raw_value(col, ngoai_totals[-1] if ngoai_totals else {})
@@ -911,6 +980,11 @@ def _export_to_excel(periods: list, columns=None, show_ratio=False) -> BytesIO:
         for pi in range(n_periods):
             val = _col_cell_value(col, noi_totals[pi] if pi < len(noi_totals) else None)
             _cell(row, data_col, val, font_bold, align_right)
+            data_col += 1
+        if show_diff:
+            first_val = _get_col_raw_value(col, noi_totals[0] if 0 < len(noi_totals) else {})
+            last_val = _get_col_raw_value(col, noi_totals[-1] if noi_totals else {})
+            _cell(row, data_col, _diff_cell_value(first_val, last_val), font_bold, align_right)
             data_col += 1
         if show_ratio:
             first_val = _get_col_raw_value(col, noi_totals[0] if 0 < len(noi_totals) else {})
@@ -964,6 +1038,11 @@ def _export_to_excel(periods: list, columns=None, show_ratio=False) -> BytesIO:
                     ratio_text = ""
                 _cell(row, data_col, ratio_text, font_bold, align_right)
             data_col += 1
+        if show_diff:
+            first_val = _get_col_raw_value(col, combined_totals[0] if combined_totals else {})
+            last_val = _get_col_raw_value(col, combined_totals[-1] if combined_totals else {})
+            _cell(row, data_col, _diff_cell_value(first_val, last_val), font_bold, align_right)
+            data_col += 1
         if show_ratio:
             first_val = _get_col_raw_value(col, combined_totals[0] if combined_totals else {})
             last_val = _get_col_raw_value(col, combined_totals[-1] if combined_totals else {})
@@ -997,24 +1076,41 @@ def render():
     _init_periods()
     periods = st.session_state[_SS_KEY]
 
-    # ── Inject custom CSS for period cards ──
+    # ── Period section CSS ──
     st.markdown("""
     <style>
-        .period-card {
-            border-radius: 10px;
-            padding: 1rem 1.2rem;
-            margin-bottom: 0.5rem;
-            border-left: 4px solid;
-        }
-        .period-label {
-            font-size: 0.85rem;
-            font-weight: 600;
-            text-transform: uppercase;
+        .cbd-period-title {
+            font-size: 0.9rem;
+            font-weight: 700;
             letter-spacing: 0.05em;
-            margin-bottom: 0.3rem;
+            color: #cbd5e1;
+        }
+        .cbd-badge {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 28px;
+            height: 28px;
+            border-radius: 50%;
+            font-size: 0.8rem;
+            font-weight: 700;
+            color: #fff;
+            flex-shrink: 0;
         }
     </style>
     """, unsafe_allow_html=True)
+
+    # ── Header row: title + add button ──
+    hdr_left, hdr_right = st.columns([4, 1.5])
+    with hdr_left:
+        st.markdown('<div class="cbd-period-title">KHOẢNG THỜI GIAN SO SÁNH</div>', unsafe_allow_html=True)
+    with hdr_right:
+        st.button(
+            "➕ Thêm khoảng so sánh",
+            key="_cbd_add_btn",
+            on_click=_add_period,
+            type="primary",
+        )
 
     # ── Render each period selector ──
     collected_periods = []
@@ -1022,20 +1118,18 @@ def render():
     for idx, period in enumerate(periods):
         pid = period["id"]
         color = _get_color(idx)
-        is_required = idx == 0  # Số liệu 1 bắt buộc
+        num = idx + 1
 
-        label = f"Số liệu {idx + 1}"
-        optional_text = "" if is_required else " (tùy chọn)"
+        # Layout: [badge] [from_year] [from_month] [→] [to_year] [to_month] [🗑️]
+        cols = st.columns([0.3, 1.2, 1, 0.2, 1.2, 1, 0.3])
 
-        st.markdown(
-            f'<div class="period-card" style="background:{color["bg"]};border-color:{color["border"]};">'
-            f'<div class="period-label" style="color:{color["label"]};">{label}{optional_text}</div>'
-            f'</div>',
-            unsafe_allow_html=True,
-        )
-
-        # Layout: [Từ năm] [Từ tháng] [→] [Đến năm] [Đến tháng] [🗑️]
-        cols = st.columns([1.2, 1, 0.3, 1.2, 1, 0.5] if not is_required else [1.2, 1, 0.3, 1.2, 1, 0.01])
+        with cols[0]:
+            st.markdown(
+                f'<div style="padding-top:0.35rem;">'
+                f'<span class="cbd-badge" style="background-color:{color["border"]};">{num}</span>'
+                f'</div>',
+                unsafe_allow_html=True,
+            )
 
         # ── Saved state keys ──
         saved_fy = f"_saved_cbd_fy_{pid}"
@@ -1044,7 +1138,7 @@ def render():
         saved_tm = f"_saved_cbd_tm_{pid}"
 
         # ── FROM Year ──
-        with cols[0]:
+        with cols[1]:
             default_fy_idx = 0
             if saved_fy in st.session_state and st.session_state[saved_fy] in years:
                 default_fy_idx = years.index(st.session_state[saved_fy])
@@ -1060,7 +1154,7 @@ def render():
 
         # ── FROM Month ──
         from_months = _get_months_for_year(ym_df, from_year)
-        with cols[1]:
+        with cols[2]:
             default_fm_idx = 0
             if saved_fm in st.session_state:
                 saved_val = st.session_state[saved_fm]
@@ -1078,14 +1172,14 @@ def render():
             st.session_state[saved_fm] = from_month
 
         # ── Arrow ──
-        with cols[2]:
+        with cols[3]:
             st.markdown(
-                '<div style="text-align:center;padding:0.5rem 0;font-size:1.2rem;color:#94a3b8;">→</div>',
+                '<div style="text-align:center;padding-top:0.6rem;color:#94a3b8;">→</div>',
                 unsafe_allow_html=True,
             )
 
         # ── TO Year ──
-        with cols[3]:
+        with cols[4]:
             default_ty_idx = 0
             if saved_ty in st.session_state and st.session_state[saved_ty] in years:
                 default_ty_idx = years.index(st.session_state[saved_ty])
@@ -1101,7 +1195,7 @@ def render():
 
         # ── TO Month ──
         to_months = _get_months_for_year(ym_df, to_year)
-        with cols[4]:
+        with cols[5]:
             # Filter: "to" must be >= "from" chronologically
             from_ym = _ym_to_int(from_year, from_month)
             valid_to_months = [m for m in to_months if _ym_to_int(to_year, m) >= from_ym]
@@ -1124,14 +1218,15 @@ def render():
             )
             st.session_state[saved_tm] = to_month
 
-        # ── Remove button (chỉ hiện nếu không bắt buộc) ──
-        if not is_required:
-            with cols[5]:
+        # ── Remove button ──
+        with cols[6]:
+            if len(periods) > 1:
                 if st.button("🗑️", key=f"_rm_cbd_{pid}", help="Xóa khoảng thời gian này"):
                     _remove_period(pid)
                     st.rerun()
 
         # Validate chronological order
+        label = f"Số liệu {num}"
         final_from = _ym_to_int(from_year, from_month)
         final_to = _ym_to_int(to_year, to_month)
         if final_from > final_to:
@@ -1146,14 +1241,6 @@ def render():
                 "period_text": _format_period_label(from_year, from_month, to_year, to_month),
                 "color": color,
             })
-
-    # ── Add period button ──
-    st.button(
-        "➕ Thêm khoảng so sánh",
-        key="_cbd_add_btn",
-        on_click=_add_period,
-        type="secondary",
-    )
 
     st.markdown("---")
 
@@ -1173,27 +1260,34 @@ def render():
     # ── Profile selector + ratio checkbox + download ──
     profile_names = _load_profile_names_for_page()
     profile_options = ["Tất cả"] + profile_names
-    col_pf, col_ratio, col_dl = st.columns([2, 1, 1])
+    col_pf, col_ratio, col_diff, col_dl = st.columns([2, 1, 1, 1])
     with col_pf:
         selected_profile = st.selectbox(
             "📊 Profile hiển thị", profile_options,
             key="cost_dept_profile",
             help="Chọn profile để lọc và sắp xếp các cột hiển thị",
         )
+    can_compare = len(collected_periods) >= 2
     with col_ratio:
-        can_ratio = len(collected_periods) >= 2
         show_ratio = st.checkbox(
-            "Cột tỷ lệ",
+            "Tỷ lệ %",
             key="cost_dept_show_ratio",
-            disabled=not can_ratio,
-            help="Thêm cột Tỷ lệ% so sánh khoảng thời gian cuối vs đầu" if can_ratio else "Cần ≥ 2 khoảng thời gian",
+            disabled=not can_compare,
+            help="Thêm cột Tỷ lệ% so sánh khoảng cuối vs đầu" if can_compare else "Cần ≥ 2 khoảng thời gian",
+        )
+    with col_diff:
+        show_diff = st.checkbox(
+            "Chênh lệch",
+            key="cost_dept_show_diff",
+            disabled=not can_compare,
+            help="Thêm cột chênh lệch = giá trị cuối − giá trị đầu" if can_compare else "Cần ≥ 2 khoảng thời gian",
         )
 
     chosen = None if selected_profile == "Tất cả" else selected_profile
     active_columns = _get_active_columns(chosen)
 
     with col_dl:
-        excel_buf = _export_to_excel(collected_periods, active_columns, show_ratio=show_ratio)
+        excel_buf = _export_to_excel(collected_periods, active_columns, show_ratio=show_ratio, show_diff=show_diff)
         file_label = collected_periods[0]["period_text"] if collected_periods else "data"
         st.download_button(
             label="📥 Tải Excel",
@@ -1204,4 +1298,4 @@ def render():
         )
 
     # Build and display comparison table
-    _render_comparison_table(collected_periods, active_columns, show_ratio=show_ratio)
+    _render_comparison_table(collected_periods, active_columns, show_ratio=show_ratio, show_diff=show_diff)
