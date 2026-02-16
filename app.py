@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# v2026.02.14 – Tailwind-in-Streamlit redesign
+# v2026.02.16 – Light/Dark theme toggle
 """
 app.py - CPBQ Dashboard
 ========================
@@ -11,7 +11,10 @@ Giao diện quản lý dữ liệu thanh toán BHYT:
 """
 
 import streamlit as st
-from tw_components import inject_tailwind, override_streamlit_widgets
+from tw_components import (
+    inject_tailwind, override_streamlit_widgets,
+    inject_theme_css, inject_theme_script, get_theme,
+)
 
 # ─── Page Config ──────────────────────────────────────────────────────────────
 
@@ -26,10 +29,14 @@ st.set_page_config(
 
 if "current_page" not in st.session_state:
     st.session_state.current_page = "overview"
+if "theme" not in st.session_state:
+    st.session_state.theme = "dark"
 
-# ─── Tailwind CSS + Widget Overrides ─────────────────────────────────────────
+# ─── Theme + CSS injection ───────────────────────────────────────────────────
 
 inject_tailwind()
+inject_theme_css()
+inject_theme_script()
 override_streamlit_widgets()
 
 
@@ -44,6 +51,14 @@ PAGES = [
 ]
 
 st.sidebar.markdown("### 🏥 CPBQ Dashboard")
+
+# ── Theme toggle ──
+theme = get_theme()
+toggle_label = "🌙 Tối" if theme == "dark" else "☀️ Sáng"
+if st.sidebar.button(toggle_label, key="theme_toggle", use_container_width=True):
+    st.session_state.theme = "light" if theme == "dark" else "dark"
+    st.rerun()
+
 st.sidebar.markdown("---")
 
 for p in PAGES:

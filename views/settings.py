@@ -396,10 +396,10 @@ def _render_profiles_tab():
     with hdr_left:
         st.markdown(
             f"<div style='margin-bottom:2px;'>"
-            f"<span style='font-size:18px;font-weight:700;color:#e2e8f0;'>"
+            f"<span style='font-size:18px;font-weight:700;color:var(--text-primary);'>"
             f"Profile: {selected}</span></div>"
-            f"<div style='font-size:13px;color:#94a3b8;margin-bottom:8px;'>"
-            f"Đã chọn <b style='color:#cbd5e1;'>{visible_count}</b> / {total_count} chỉ tiêu hiển thị</div>",
+            f"<div style='font-size:13px;color:var(--text-secondary);margin-bottom:8px;'>"
+            f"Đã chọn <b style='color:var(--text-body);'>{visible_count}</b> / {total_count} chỉ tiêu hiển thị</div>",
             unsafe_allow_html=True,
         )
     with hdr_right:
@@ -428,8 +428,8 @@ def _render_profiles_tab():
     # ── Table header ──
     st.markdown(
         "<div style='display:flex;align-items:center;padding:10px 16px;"
-        "background:#1e293b;"
-        "border-radius:8px 8px 0 0;color:#cbd5e1;"
+        "background:var(--tbl-th-bg);"
+        "border-radius:8px 8px 0 0;color:var(--tbl-col-fixed-muted);"
         "font-size:12px;font-weight:600;letter-spacing:0.8px;"
         "text-transform:uppercase;'>"
         "<span style='width:50px;text-align:center;'>STT</span>"
@@ -451,30 +451,30 @@ def _render_profiles_tab():
     <style>
     /* ── Profile tab typography overrides ── */
     
-    /* Base: all checkbox labels in Slate 400 (unchecked) */
+    /* Base: all checkbox labels in muted color (unchecked) */
     div[data-testid="stCheckbox"] p {
-        color: #94a3b8 !important;
+        color: var(--text-muted) !important;
         font-weight: 400 !important;
     }
-    /* Checked checkboxes: near-white text via :has() on label */
+    /* Checked checkboxes: primary text via :has() on label */
     div[data-testid="stCheckbox"] label:has(input[aria-checked="true"]) p,
     div[data-testid="stCheckbox"] label:has(input:checked) p {
-        color: #f1f5f9 !important;
+        color: var(--text-primary) !important;
         font-weight: 600 !important;
     }
     /* Toggle label ("Chọn tất cả") */
     div[data-testid="stToggle"] label p,
     div[data-testid="stToggle"] p {
-        color: #cbd5e1 !important;
+        color: var(--text-body) !important;
     }
     /* ↑↓ arrow buttons */
     button[kind="secondary"] {
-        color: #cbd5e1 !important;
-        border-color: #475569 !important;
+        color: var(--text-body) !important;
+        border-color: var(--tbl-border) !important;
     }
     button[kind="secondary"]:hover {
-        color: #f1f5f9 !important;
-        border-color: #60a5fa !important;
+        color: var(--text-primary) !important;
+        border-color: var(--accent-light) !important;
     }
     </style>
     """, unsafe_allow_html=True)
@@ -496,17 +496,17 @@ def _render_profiles_tab():
                 ck_stt += 1
                 stt_num = ck_stt
                 # Checked row: bright accent STT
-                nc = "#60a5fa"
+                nc = "var(--accent-light)"
                 nw = "700"
-                name_color = "#f1f5f9"
+                name_color = "var(--text-primary)"
                 name_weight = "600"
             else:
                 uc_stt += 1
                 stt_num = uc_stt
                 # Unchecked row: muted but readable
-                nc = "#64748b"
+                nc = "var(--text-muted)"
                 nw = "400"
-                name_color = "#64748b"
+                name_color = "var(--text-muted)"
                 name_weight = "400"
 
             # Columns: STT | Checkbox+Name | (↑ | ↓) or empty
@@ -576,7 +576,7 @@ def _render_profiles_tab():
 
             # Row divider
             st.markdown(
-                "<div style='border-bottom:1px solid #334155;'></div>",
+                "<div style='border-bottom:1px solid var(--tbl-border);'></div>",
                 unsafe_allow_html=True,
             )
 
@@ -585,7 +585,7 @@ def _render_profiles_tab():
     ft_left, ft_mid, ft_cancel, ft_save = st.columns([3, 1, 1, 1.2])
     with ft_left:
         st.markdown(
-            "<div style='font-size:12px;color:#94a3b8;padding-top:8px;'>"
+            "<div style='font-size:12px;color:var(--text-secondary);padding-top:8px;'>"
             "</div>",
             unsafe_allow_html=True,
         )
@@ -761,7 +761,7 @@ def _render_merge_tab():
         return
 
     st.markdown(
-        f"<div style='font-size:13px;color:#64748b;margin-bottom:8px;'>"
+        f"<div style='font-size:13px;color:var(--text-muted);margin-bottom:8px;'>"
         f"Quản lý nhóm gộp khoa · <b>{len(groups)}</b> nhóm"
         f"</div>",
         unsafe_allow_html=True,
@@ -861,7 +861,7 @@ def _render_merge_tab():
                 c_label, c_del = st.columns([5, 1])
                 with c_label:
                     st.markdown(
-                        f"<div style='background:#e8eaf6;border-radius:6px;"
+                        f"<div style='background:var(--bg-card-subtle);border-radius:6px;"
                         f"padding:6px 12px;margin-bottom:4px;font-size:14px;'>"
                         f"{sel_d}</div>",
                         unsafe_allow_html=True,

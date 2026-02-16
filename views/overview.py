@@ -232,21 +232,21 @@ def _render_html_table(pivot: pd.DataFrame, ngoai_names: list, noi_names: list, 
 
     # Table wrapper
     html = """
-    <div style="border-radius:0.75rem;border:1px solid rgba(51,65,85,0.5);
+    <div style="border-radius:0.75rem;border:1px solid var(--border);
                 overflow:hidden;margin-bottom:1.5rem;
-                box-shadow:0 10px 15px -3px rgba(0,0,0,0.2);">
+                box-shadow:var(--shadow-table);">
     <table style="width:100%;border-collapse:collapse;font-family:'Inter',sans-serif;">
     <thead>
     <tr>
     """
 
     # Row 1: group headers
-    html += f'<th style="{th_base}color:#cbd5e1;background:rgba(30,41,59,0.9);border-bottom:1px solid rgba(51,65,85,0.5);" rowspan="2">Tháng</th>'
+    html += f'<th style="{th_base}color:var(--text-table-header);background:var(--bg-table-header);border-bottom:1px solid var(--border);" rowspan="2">Tháng</th>'
     if ngoai_span > 0:
-        html += f'<th style="{th_base}color:white;background:rgba(37,99,235,0.8);border-bottom:1px solid rgba(96,165,250,0.3);" colspan="{ngoai_span}">🔵 Ngoại trú</th>'
+        html += f'<th style="{th_base}color:white;background:rgba(37,99,235,0.8);border-bottom:1px solid rgba(96,165,250,0.3);" colspan="{ngoai_span}">💵 Ngoại trú</th>'
     if noi_span > 0:
-        html += f'<th style="{th_base}color:white;background:rgba(234,88,12,0.8);border-bottom:1px solid rgba(251,146,60,0.3);" colspan="{noi_span}">🟠 Nội trú</th>'
-    html += f'<th style="{th_base}color:#cbd5e1;background:rgba(30,41,59,0.9);border-bottom:1px solid rgba(51,65,85,0.5);" rowspan="2">TỔNG CỘNG</th>'
+        html += f'<th style="{th_base}color:white;background:rgba(234,88,12,0.8);border-bottom:1px solid rgba(251,146,60,0.3);" colspan="{noi_span}">🏥 Nội trú</th>'
+    html += f'<th style="{th_base}color:var(--text-table-header);background:var(--bg-table-header);border-bottom:1px solid var(--border);" rowspan="2">TỔNG CỘNG</th>'
     html += '</tr>'
 
     # Row 2: sub-column headers
@@ -255,24 +255,24 @@ def _render_html_table(pivot: pd.DataFrame, ngoai_names: list, noi_names: list, 
         label = col.split("|")[1]
         if label == "Tổng":
             bg = "rgba(30,64,175,0.5)"
-            clr = "#bfdbfe"
+            clr = "var(--tbl-subtotal-color)"
             fw = "font-weight:700;"
         else:
             bg = "rgba(30,64,175,0.3)"
-            clr = "#93c5fd"
+            clr = "var(--tbl-subtotal-color)"
             fw = ""
-        html += f'<th style="{th_base}color:{clr};background:{bg};border-bottom:1px solid rgba(51,65,85,0.3);{fw}">{label}</th>'
+        html += f'<th style="{th_base}color:{clr};background:{bg};border-bottom:1px solid var(--border-muted);{fw}">{label}</th>'
     for col in noi_cols:
         label = col.split("|")[1]
         if label == "Tổng":
             bg = "rgba(154,52,18,0.5)"
-            clr = "#fed7aa"
+            clr = "var(--tbl-subtotal-color)"
             fw = "font-weight:700;"
         else:
             bg = "rgba(154,52,18,0.3)"
-            clr = "#fdba74"
+            clr = "var(--tbl-subtotal-color)"
             fw = ""
-        html += f'<th style="{th_base}color:{clr};background:{bg};border-bottom:1px solid rgba(51,65,85,0.3);{fw}">{label}</th>'
+        html += f'<th style="{th_base}color:{clr};background:{bg};border-bottom:1px solid var(--border-muted);{fw}">{label}</th>'
     html += '</tr>'
     html += "</thead>"
 
@@ -282,35 +282,35 @@ def _render_html_table(pivot: pd.DataFrame, ngoai_names: list, noi_names: list, 
         is_total = row["Tháng"] == "TỔNG NĂM"
 
         if is_total:
-            tr_bg = "rgba(51,65,85,0.8)"
-            td_color = "#ffffff"
+            tr_bg = "var(--bg-table-total)"
+            td_color = "var(--text-total)"
             td_fw = "font-weight:700;"
         else:
-            tr_bg = "rgba(30,41,59,0.3)" if idx % 2 == 0 else "rgba(30,41,59,0.1)"
-            td_color = "#cbd5e1"
+            tr_bg = "var(--bg-table-row-even)" if idx % 2 == 0 else "var(--bg-table-row-odd)"
+            td_color = "var(--text-table)"
             td_fw = ""
 
         html += f'<tr style="background:{tr_bg};">'
 
         # Month column
-        m_fw = "font-weight:700;color:white;" if is_total else "font-weight:600;color:#e2e8f0;"
-        html += f'<td style="{td_pad}text-align:center;{m_fw}border-right:1px solid rgba(51,65,85,0.2);border-bottom:1px solid rgba(51,65,85,0.15);font-size:0.875rem;">{row["Tháng"]}</td>'
+        m_fw = f"font-weight:700;color:var(--text-total);" if is_total else f"font-weight:600;color:var(--text-primary);"
+        html += f'<td style="{td_pad}text-align:center;{m_fw}border-right:1px solid var(--border-muted);border-bottom:1px solid var(--border-muted);font-size:0.875rem;">{row["Tháng"]}</td>'
 
         # Ngoại trú columns
         for col in ngoai_cols:
             is_sub = col.endswith("|Tổng")
-            extra = "font-weight:600;background:rgba(59,130,246,0.05);border-left:1px solid rgba(59,130,246,0.1);" if is_sub and not is_total else ""
-            html += f'<td style="{td_pad}text-align:right;color:{td_color};{td_fw}{extra}border-bottom:1px solid rgba(51,65,85,0.15);font-size:0.875rem;">{fmt(row.get(col, 0))}</td>'
+            extra = f"font-weight:600;background:rgba(59,130,246,0.05);border-left:1px solid rgba(59,130,246,0.1);" if is_sub and not is_total else ""
+            html += f'<td style="{td_pad}text-align:right;color:{td_color};{td_fw}{extra}border-bottom:1px solid var(--border-muted);font-size:0.875rem;">{fmt(row.get(col, 0))}</td>'
 
         # Nội trú columns
         for col in noi_cols:
             is_sub = col.endswith("|Tổng")
-            extra = "font-weight:600;background:rgba(249,115,22,0.05);border-left:1px solid rgba(249,115,22,0.1);" if is_sub and not is_total else ""
-            html += f'<td style="{td_pad}text-align:right;color:{td_color};{td_fw}{extra}border-bottom:1px solid rgba(51,65,85,0.15);font-size:0.875rem;">{fmt(row.get(col, 0))}</td>'
+            extra = f"font-weight:600;background:rgba(249,115,22,0.05);border-left:1px solid rgba(249,115,22,0.1);" if is_sub and not is_total else ""
+            html += f'<td style="{td_pad}text-align:right;color:{td_color};{td_fw}{extra}border-bottom:1px solid var(--border-muted);font-size:0.875rem;">{fmt(row.get(col, 0))}</td>'
 
         # Tổng cộng column
-        tong_extra = "font-weight:700;background:rgba(16,185,129,0.05);border-left:1px solid rgba(16,185,129,0.1);" if not is_total else ""
-        html += f'<td style="{td_pad}text-align:right;color:{td_color};{td_fw}{tong_extra}border-bottom:1px solid rgba(51,65,85,0.15);font-size:0.875rem;">{fmt(row.get("TỔNG CỘNG", 0))}</td>'
+        tong_extra = f"font-weight:700;background:rgba(16,185,129,0.05);border-left:1px solid rgba(16,185,129,0.1);" if not is_total else ""
+        html += f'<td style="{td_pad}text-align:right;color:{td_color};{td_fw}{tong_extra}border-bottom:1px solid var(--border-muted);font-size:0.875rem;">{fmt(row.get("TỔNG CỘNG", 0))}</td>'
         html += '</tr>'
 
     html += "</tbody></table></div>"
@@ -380,6 +380,59 @@ def _load_manage_data(nam_qt: int) -> pd.DataFrame:
     return df
 
 
+@st.cache_data(ttl=300)
+def _load_manage_data_range(from_year: int, to_year: int) -> pd.DataFrame:
+    """Load toàn bộ dữ liệu từ VIEW enriched theo khoảng năm."""
+    view_full = f"{PROJECT_ID}.{DATASET_ID}.{VIEW_ID}"
+    query = f"SELECT * FROM `{view_full}` WHERE nam_qt BETWEEN {from_year} AND {to_year} ORDER BY nam_qt DESC, thang_qt DESC, ma_cskcb"
+    df = run_query(query)
+    drop_cols = [c for c in _MANAGE_EXCLUDE_COLS if c in df.columns]
+    if drop_cols:
+        df = df.drop(columns=drop_cols)
+    return df
+
+
+def _search_bigquery(conditions: list, from_year: int, to_year: int, limit: int = 10000) -> pd.DataFrame:
+    """Search trực tiếp trên BigQuery với các điều kiện multi-condition."""
+    view_full = f"{PROJECT_ID}.{DATASET_ID}.{VIEW_ID}"
+
+    # Base WHERE: year range
+    where_parts = [f"nam_qt BETWEEN {from_year} AND {to_year}"]
+
+    # Build condition clauses
+    active_conds = [c for c in conditions if c.get("keyword", "").strip()]
+    cond_clauses = []
+    for idx, cond in enumerate(active_conds):
+        keyword = cond["keyword"].strip().replace("'", "\\'")
+        field = cond["field"]
+        clause = f"LOWER(CAST(`{field}` AS STRING)) LIKE '%{keyword.lower()}%'"
+        cond_clauses.append({"clause": clause, "operator": cond.get("operator", "AND")})
+
+    if cond_clauses:
+        # Build combined condition expression
+        expr = cond_clauses[0]["clause"]
+        for i in range(1, len(cond_clauses)):
+            op = cond_clauses[i]["operator"]
+            expr = f"({expr} {op} {cond_clauses[i]['clause']})"
+        where_parts.append(f"({expr})")
+
+    where_sql = " AND ".join(where_parts)
+    query = f"SELECT * FROM `{view_full}` WHERE {where_sql} LIMIT {limit}"
+    df = run_query(query)
+    drop_cols = [c for c in _MANAGE_EXCLUDE_COLS if c in df.columns]
+    if drop_cols:
+        df = df.drop(columns=drop_cols)
+    return df
+
+
+def _count_bigquery(from_year: int, to_year: int) -> int:
+    """Đếm nhanh tổng dòng theo khoảng năm (cho metadata)."""
+    view_full = f"{PROJECT_ID}.{DATASET_ID}.{VIEW_ID}"
+    query = f"SELECT COUNT(*) AS total FROM `{view_full}` WHERE nam_qt BETWEEN {from_year} AND {to_year}"
+    df = run_query(query)
+    return int(df["total"].iloc[0]) if not df.empty else 0
+
+
 def _render_tab_manage():
     """Render tab Quản lý số liệu."""
 
@@ -390,7 +443,7 @@ def _render_tab_manage():
     if _del_msg:
         st.toast(_del_msg, icon="✅")
 
-    # ── Step 1: Year Selector ──
+    # ── Step 1: Year Range + Method Selector ──
     try:
         years = _load_available_years()
     except Exception as e:
@@ -401,109 +454,383 @@ def _render_tab_manage():
         st.markdown(info_banner("Chưa có dữ liệu trên BigQuery.", "info"), unsafe_allow_html=True)
         return
 
-    col_y, col_btn, _ = st.columns([1, 1, 3])
-    with col_y:
-        selected_year = st.selectbox(
-            "Năm quyết toán:",
+    _METHOD_OPTIONS = ["🧠 Tự động", "💾 RAM", "☁️ BigQuery"]
+    _AUTO_THRESHOLD = 3  # ≤ 3 years → RAM, > 3 → BigQuery
+
+    col_y1, col_y2, col_method, col_btn = st.columns([1, 1, 1.2, 1])
+
+    with col_y1:
+        from_year = st.selectbox(
+            "Năm bắt đầu:",
             years,
-            key="_mgmt_year_select",
+            key="_mgmt_from_year",
         )
+
+    with col_y2:
+        # Only show years >= from_year
+        end_years = [y for y in years if y >= from_year]
+        # Default to the max year available
+        default_end_idx = 0  # First item is max since years is DESC
+        to_year = st.selectbox(
+            "Năm kết thúc:",
+            end_years,
+            index=default_end_idx,
+            key="_mgmt_to_year",
+        )
+        # Ensure to_year >= from_year
+        if to_year < from_year:
+            to_year = from_year
+
+    with col_method:
+        selected_method = st.selectbox(
+            "Phương pháp:",
+            _METHOD_OPTIONS,
+            key="_mgmt_method",
+        )
+
+    # Determine actual method
+    n_years = to_year - from_year + 1
+    if selected_method == "🧠 Tự động":
+        actual_method = "RAM" if n_years <= _AUTO_THRESHOLD else "BigQuery"
+    elif selected_method == "💾 RAM":
+        actual_method = "RAM"
+    else:
+        actual_method = "BigQuery"
+
     with col_btn:
         st.markdown("<br>", unsafe_allow_html=True)
         load_clicked = st.button("📥 Tải dữ liệu", type="primary", key="_mgmt_load_btn")
 
-    # Only load when button is clicked — store result in session_state
+    # Show loading status for data load
     if load_clicked:
-        with st.spinner(f"⏳ Đang tải dữ liệu năm {selected_year}..."):
-            data = _load_manage_data(selected_year)
-        st.session_state["_mgmt_loaded_data"] = data
-        st.session_state["_mgmt_loaded_year"] = selected_year
+        _load_status = st.status(f"⏳ Đang tải dữ liệu {from_year}–{to_year}...", expanded=True, state="running")
+
+    # Show method hint
+    method_icon = "💾" if actual_method == "RAM" else "☁️"
+    st.markdown(
+        f"<div style='font-size:0.75rem;color:var(--text-muted);margin-top:-0.5rem;'>"
+        f"{method_icon} Phương pháp: <strong>{actual_method}</strong> ({n_years} năm, "
+        f"từ {from_year} đến {to_year})</div>",
+        unsafe_allow_html=True,
+    )
+
+    # ── Load data ──
+    _loaded_key = "_mgmt_loaded_data"
+    _loaded_range_key = "_mgmt_loaded_range"
+    _loaded_method_key = "_mgmt_loaded_method"
+
+    if load_clicked:
+        current_range = (from_year, to_year)
+        if actual_method == "RAM":
+            _load_status.write(f"💾 Nạp dữ liệu {from_year}–{to_year} vào RAM...")
+            data = _load_manage_data_range(from_year, to_year)
+            st.session_state[_loaded_key] = data
+            _load_status.update(label=f"✅ Đã tải {len(data):,} dòng ({from_year}–{to_year})", state="complete", expanded=False)
+        else:
+            _load_status.write(f"☁️ Đếm dữ liệu {from_year}–{to_year} trên BigQuery...")
+            total_count = _count_bigquery(from_year, to_year)
+            st.session_state[_loaded_key] = None
+            st.session_state["_mgmt_bq_total"] = total_count
+            _load_status.update(label=f"✅ Sẵn sàng ({total_count:,} dòng, BigQuery)", state="complete", expanded=False)
+
+        st.session_state[_loaded_range_key] = current_range
+        st.session_state[_loaded_method_key] = actual_method
+
+        # Reset search conditions to single empty condition
+        st.session_state["_mgmt_search_conditions"] = [{"field": "", "keyword": ""}]
+        # Reset pagination
+        st.session_state["_mgmt_page"] = 0
+        # Clear any pending search action
+        if "_mgmt_action_search" in st.session_state:
+            del st.session_state["_mgmt_action_search"]
 
     # Retrieve from session_state
-    data = st.session_state.get("_mgmt_loaded_data")
-    loaded_year = st.session_state.get("_mgmt_loaded_year")
+    loaded_range = st.session_state.get(_loaded_range_key)
+    loaded_method = st.session_state.get(_loaded_method_key, "RAM")
 
-    if data is None or loaded_year != selected_year:
+    if loaded_range != (from_year, to_year):
         st.markdown(info_banner(
-            f"Chọn năm quyết toán và bấm <strong>Tải dữ liệu</strong> để hiển thị.",
+            f"Chọn khoảng năm và bấm <strong>Tải dữ liệu</strong> để hiển thị.",
             "info"
         ), unsafe_allow_html=True)
         return
 
-    if data.empty:
-        st.markdown(info_banner(
-            f"Năm {selected_year}: không có dữ liệu.", "info"
-        ), unsafe_allow_html=True)
-        return
+    data = st.session_state.get(_loaded_key)
+
+    if loaded_method == "RAM":
+        if data is None or data.empty:
+            st.markdown(info_banner(
+                f"Năm {from_year}–{to_year}: không có dữ liệu.", "info"
+            ), unsafe_allow_html=True)
+            return
 
     # ── Metrics ──
-    total = len(data)
-    n_months = data[["nam_qt", "thang_qt"]].drop_duplicates().shape[0]
-    n_cskcb = data["ma_cskcb"].nunique()
+    if loaded_method == "RAM":
+        total = len(data)
+        n_months = data[["nam_qt", "thang_qt"]].drop_duplicates().shape[0]
+        n_cskcb = data["ma_cskcb"].nunique()
+    else:
+        total = st.session_state.get("_mgmt_bq_total", 0)
+        n_months = to_year - from_year + 1
+        n_cskcb = "–"
 
     cards = metric_row([
         metric_card("Số dòng", f"{total:,}", "📊", "blue"),
-        metric_card("Số tháng", f"{n_months}", "📅", "cyan"),
+        metric_card("Số tháng" if loaded_method == "RAM" else "Số năm", f"{n_months}", "📅", "cyan"),
         metric_card("Số CSKCB", f"{n_cskcb}", "🏥", "purple"),
     ])
     st.markdown(cards, unsafe_allow_html=True)
 
     st.markdown(divider(), unsafe_allow_html=True)
 
-    # ── Step 2: Search Toolbar ──
+    # ── Step 2: Multi-condition Search Builder ──
     st.markdown(section_title("Dữ liệu chi tiết", "🔍"), unsafe_allow_html=True)
 
-    all_columns = list(data.columns)
-    # Search columns selection
-    search_cols_key = "_mgmt_search_cols"
-    if search_cols_key not in st.session_state:
-        st.session_state[search_cols_key] = [
-            c for c in _DEFAULT_SEARCH_COLS if c in all_columns
-        ]
+    # ── CSS/JS: inline clear X inside search inputs ──
+    # Inject CSS into parent document and JS to convert inputs to type="search"
+    import streamlit.components.v1 as components
+    components.html("""
+    <script>
+    (function() {
+        const doc = window.parent.document;
 
-    col_search, col_cfg = st.columns([5, 1])
-    with col_search:
-        search_text = st.text_input(
-            "🔎 Tìm kiếm",
-            placeholder="Nhập từ khóa tìm kiếm...",
-            key="_mgmt_search_input",
-            label_visibility="collapsed",
-        )
+        // Inject CSS for styled search cancel button
+        if (!doc.getElementById('_mgmt_search_css')) {
+            const style = doc.createElement('style');
+            style.id = '_mgmt_search_css';
+            style.textContent = `
+                div[data-testid="stTextInput"] input[type="search"] {
+                    -webkit-appearance: searchfield !important;
+                }
+                div[data-testid="stTextInput"] input[type="search"]::-webkit-search-cancel-button {
+                    -webkit-appearance: none;
+                    display: inline-block;
+                    height: 16px;
+                    width: 16px;
+                    cursor: pointer;
+                    background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23999' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cline x1='18' y1='6' x2='6' y2='18'/%3E%3Cline x1='6' y1='6' x2='18' y2='18'/%3E%3C/svg%3E") center/contain no-repeat;
+                    opacity: 0.4;
+                    transition: opacity 0.2s;
+                }
+                div[data-testid="stTextInput"] input[type="search"]::-webkit-search-cancel-button:hover {
+                    opacity: 0.9;
+                }
+            `;
+            doc.head.appendChild(style);
+        }
 
-    with col_cfg:
-        with st.popover("⚙️ Cột tìm kiếm"):
-            st.markdown("**Chọn cột để tìm kiếm:**")
-            selected_search_cols = st.multiselect(
-                "Cột tìm kiếm",
-                all_columns,
-                default=st.session_state[search_cols_key],
-                key="_mgmt_search_cols_select",
+        // Convert keyword inputs to type="search" and add clear event handler
+        function convertInputs() {
+            doc.querySelectorAll('input[aria-label^="Từ khóa"]').forEach(input => {
+                if (input.type !== 'search') {
+                    input.type = 'search';
+                    // When native X is clicked, trigger React's change detection
+                    input.addEventListener('search', function() {
+                        if (this.value === '') {
+                            // Dispatch input event so Streamlit/React picks up the change
+                            const nativeInputValueSetter = Object.getOwnPropertyDescriptor(
+                                window.parent.HTMLInputElement.prototype, 'value'
+                            ).set;
+                            nativeInputValueSetter.call(this, '');
+                            this.dispatchEvent(new Event('input', { bubbles: true }));
+                            this.dispatchEvent(new Event('change', { bubbles: true }));
+                        }
+                    });
+                }
+            });
+        }
+
+        convertInputs();
+        const obs = new MutationObserver(convertInputs);
+        obs.observe(doc.body, { childList: true, subtree: true });
+    })();
+    </script>
+    """, height=0)
+
+    # Get column list (from data if RAM, or from a quick schema query if BQ)
+    if loaded_method == "RAM" and data is not None:
+        all_columns = list(data.columns)
+    else:
+        # Fetch column names from BigQuery schema
+        _cols_cache_key = "_mgmt_bq_columns"
+        if _cols_cache_key not in st.session_state:
+            view_full = f"{PROJECT_ID}.{DATASET_ID}.{VIEW_ID}"
+            schema_df = run_query(f"SELECT * FROM `{view_full}` LIMIT 0")
+            st.session_state[_cols_cache_key] = [c for c in schema_df.columns if c not in _MANAGE_EXCLUDE_COLS]
+        all_columns = st.session_state[_cols_cache_key]
+
+    # ── Session state for conditions ──
+    _cond_key = "_mgmt_search_conditions"
+    _default_field = all_columns[0] if all_columns else ""
+
+    if _cond_key not in st.session_state:
+        # Each condition: {"field": str, "keyword": str, "operator": "AND"/"OR"}
+        # operator is the combinator with the PREVIOUS condition (ignored for first)
+        st.session_state[_cond_key] = [{"field": _default_field, "keyword": ""}]
+
+    conditions = st.session_state[_cond_key]
+
+    # ── Handle add / delete actions (process before rendering) ──
+    _action_add_key = "_mgmt_action_add"
+    _action_del_key = "_mgmt_action_del"
+
+    if st.session_state.get(_action_add_key, False):
+        conditions.append({"field": _default_field, "keyword": "", "operator": "AND"})
+        st.session_state[_cond_key] = conditions
+        del st.session_state[_action_add_key]
+        st.rerun()
+
+    # Check for delete action
+    _del_idx = st.session_state.get(_action_del_key, None)
+    if _del_idx is not None and 1 <= _del_idx < len(conditions):
+        conditions.pop(_del_idx)
+        st.session_state[_cond_key] = conditions
+        del st.session_state[_action_del_key]
+        st.rerun()
+
+    # ── Render condition rows ──
+    n_conds = len(conditions)
+
+    for i, cond in enumerate(conditions):
+        # ── AND/OR radio (between conditions, shown for i >= 1) ──
+        if i >= 1:
+            op_val = st.radio(
+                f"Điều kiện {i + 1}",
+                ["AND", "OR"],
+                index=0 if cond.get("operator", "AND") == "AND" else 1,
+                horizontal=True,
+                key=f"_mgmt_cond_op_{i}",
                 label_visibility="collapsed",
             )
-            if selected_search_cols != st.session_state[search_cols_key]:
-                st.session_state[search_cols_key] = selected_search_cols
+            conditions[i]["operator"] = op_val
 
-    # Apply search filter
-    display_df = data
-    active_search_cols = st.session_state[search_cols_key]
+        # ── Condition row: [field dropdown] [search box] [➕] [🗑️] ──
+        is_last = i == n_conds - 1
 
-    if search_text and active_search_cols:
-        keyword = search_text.lower().strip()
-        # Build a combined text column for searching
-        combined = data[active_search_cols].fillna("").astype(str).apply(
-            lambda row: " ".join(row).lower(), axis=1
-        )
-        mask = combined.str.contains(keyword, na=False)
-        display_df = data[mask]
+        if i == 0:
+            # First condition: [field] [search] [➕ add]
+            c_field, c_search, c_add = st.columns([1.5, 4, 0.4])
+        elif is_last:
+            # Last condition (not first): [field] [search] [➕ add] [🗑️ delete]
+            c_field, c_search, c_add, c_del = st.columns([1.5, 4, 0.4, 0.4])
+        else:
+            # Middle condition: [field] [search] [🗑️ delete]
+            c_field, c_search, c_del = st.columns([1.5, 4, 0.4])
 
+        with c_field:
+            field_idx = all_columns.index(cond["field"]) if cond["field"] in all_columns else 0
+            sel_field = st.selectbox(
+                f"Trường {i + 1}",
+                all_columns,
+                index=field_idx,
+                key=f"_mgmt_cond_field_{i}",
+                label_visibility="collapsed",
+            )
+            conditions[i]["field"] = sel_field
+
+        with c_search:
+            kw = st.text_input(
+                f"Từ khóa {i + 1}",
+                value=cond.get("keyword", ""),
+                placeholder=f"Tìm trong \"{sel_field}\"...",
+                key=f"_mgmt_cond_kw_{i}",
+                label_visibility="collapsed",
+            )
+            conditions[i]["keyword"] = kw
+
+        # ➕ add button (only on last condition)
+        if is_last:
+            with c_add:
+                if st.button("➕", key=f"_mgmt_btn_add_{i}", use_container_width=True):
+                    st.session_state[_action_add_key] = True
+                    st.rerun()
+
+        # 🗑️ delete button (on conditions >= 1)
+        if i >= 1:
+            with c_del:
+                if st.button("🗑️", key=f"_mgmt_btn_del_{i}", use_container_width=True):
+                    st.session_state[_action_del_key] = i
+                    st.rerun()
+
+    st.session_state[_cond_key] = conditions
+
+    # ── Search button ──
+    _action_search_key = "_mgmt_action_search"
+    if st.button("🔍 Tìm kiếm", key="_mgmt_search_go_btn", type="primary"):
+        st.session_state[_action_search_key] = True
+
+    # ── Apply search filter ──
+    display_df = data if data is not None else pd.DataFrame()
+    _is_searching = False
+
+    if st.session_state.get(_action_search_key, False):
+        active_conds = [c for c in conditions if c.get("keyword", "").strip()]
+
+        if active_conds:
+            _is_searching = True
+
+            if loaded_method == "RAM" and data is not None:
+                # ── RAM mode: pandas filter ──
+                final_mask = None
+                for idx, cond in enumerate(active_conds):
+                    keyword = cond["keyword"].lower().strip()
+                    field = cond["field"]
+                    if field not in data.columns:
+                        continue
+                    col_values = data[field].fillna("").astype(str).str.lower()
+                    cond_mask = col_values.str.contains(keyword, na=False)
+                    if final_mask is None:
+                        final_mask = cond_mask
+                    else:
+                        op = cond.get("operator", "AND")
+                        if op == "AND":
+                            final_mask = final_mask & cond_mask
+                        else:
+                            final_mask = final_mask | cond_mask
+                if final_mask is not None:
+                    display_df = data[final_mask]
+            else:
+                # ── BigQuery mode: server-side search ──
+                _search_status = st.status("⏳ Đang tìm kiếm trên BigQuery...", expanded=True, state="running")
+                _search_status.write("☁️ Gửi truy vấn đến BigQuery...")
+                display_df = _search_bigquery(conditions, from_year, to_year)
+                _search_status.update(label=f"✅ Tìm thấy {len(display_df):,} kết quả", state="complete", expanded=False)
+                st.session_state["_mgmt_bq_search_result"] = display_df
+
+            # Build summary text
+            summary_ops = []
+            for j, c in enumerate(active_conds):
+                if j > 0:
+                    summary_ops.append(f" <strong>{c.get('operator', 'AND')}</strong> ")
+                summary_ops.append(f"\"{c['keyword']}\" trong <em>{c['field']}</em>")
+            summary_text = "".join(summary_ops)
+
+            st.markdown(info_banner(
+                f"Tìm thấy <strong>{len(display_df):,}</strong> / {total:,} dòng "
+                f"khớp: {summary_text}"
+                + (" (giới hạn 10,000 dòng)" if loaded_method == "BigQuery" and len(display_df) >= 10000 else ""),
+                "success" if len(display_df) > 0 else "warning"
+            ), unsafe_allow_html=True)
+
+        # Reset search trigger
+        del st.session_state[_action_search_key]
+    elif loaded_method == "BigQuery":
+        # Check if there's a cached BQ search result
+        cached_bq = st.session_state.get("_mgmt_bq_search_result")
+        if cached_bq is not None:
+            display_df = cached_bq
+            _is_searching = True
+
+    # In BigQuery mode, if no search has been performed, show instruction
+    if loaded_method == "BigQuery" and not _is_searching:
         st.markdown(info_banner(
-            f"Tìm thấy <strong>{len(display_df):,}</strong> / {total:,} dòng "
-            f"khớp với từ khóa \"<strong>{search_text}</strong>\" "
-            f"(tìm trong {len(active_search_cols)} cột)",
-            "success" if len(display_df) > 0 else "warning"
+            "Chế độ <strong>BigQuery</strong>: nhập điều kiện tìm kiếm và bấm "
+            "<strong>🔍 Tìm kiếm</strong> để truy vấn dữ liệu.",
+            "info"
         ), unsafe_allow_html=True)
+        return
 
-    # ── Paginated data editor with checkboxes ──
+    # ── Paginated data table ──
     import math
 
     _ps_key = "_mgmt_page_size"
@@ -529,18 +856,24 @@ def _render_tab_manage():
     end_idx = min(start_idx + page_size, total_display)
     page_df = display_df.iloc[start_idx:end_idx].copy()
 
-    # ── Select All + Navigation bar ──
-    sel_col, nav_cols1, nav_cols2, nav_cols3, nav_cols4, nav_cols5 = st.columns(
-        [1, 1.2, 0.6, 0.6, 0.6, 2]
+    # ── Data table with native row selection ──
+    view_df = page_df.reset_index(drop=True)
+
+    selection = st.dataframe(
+        view_df,
+        use_container_width=True,
+        hide_index=True,
+        selection_mode="multi-row",
+        on_select="rerun",
+        key=f"_mgmt_editor_p{current_page}",
     )
 
-    with sel_col:
-        select_all = st.checkbox(
-            "Chọn tất cả", key="_mgmt_select_all",
-            help="Chọn/bỏ chọn tất cả dòng trong trang hiện tại",
-        )
+    # ── Compact paging bar (below table) ──
+    pg_cols1, pg_cols2, pg_cols3, pg_cols4, pg_cols5 = st.columns(
+        [1, 0.5, 0.8, 0.5, 2]
+    )
 
-    with nav_cols1:
+    with pg_cols1:
         new_size = st.selectbox(
             "Số dòng/trang",
             _page_sizes,
@@ -553,54 +886,35 @@ def _render_tab_manage():
             st.session_state[_pg_key] = 0
             st.rerun()
 
-    with nav_cols2:
+    with pg_cols2:
         if st.button("◀", key="_mgmt_prev", disabled=(current_page == 0)):
             st.session_state[_pg_key] = current_page - 1
             st.rerun()
 
-    with nav_cols3:
+    with pg_cols3:
         st.markdown(
-            f"<div style='text-align:center;padding:0.4rem 0;color:#94a3b8;font-size:0.85rem;'>"
-            f"Trang <strong style='color:#e2e8f0;'>{current_page + 1}</strong> / {total_pages}"
+            f"<div style='text-align:center;padding:0.3rem 0;color:var(--text-secondary);font-size:0.75rem;'>"
+            f"Trang <strong style='color:var(--text-primary);'>{current_page + 1}</strong> / {total_pages}"
             f"</div>",
             unsafe_allow_html=True,
         )
 
-    with nav_cols4:
+    with pg_cols4:
         if st.button("▶", key="_mgmt_next", disabled=(current_page >= total_pages - 1)):
             st.session_state[_pg_key] = current_page + 1
             st.rerun()
 
-    with nav_cols5:
+    with pg_cols5:
         st.markdown(
-            f"<div style='text-align:right;padding:0.4rem 0;color:#64748b;font-size:0.8rem;'>"
+            f"<div style='text-align:right;padding:0.3rem 0;color:var(--text-muted);font-size:0.7rem;'>"
             f"Hiển thị {start_idx + 1:,}–{end_idx:,} / {total_display:,} dòng"
             f"</div>",
             unsafe_allow_html=True,
         )
 
-    # ── data_editor with checkbox column ──
-    editor_df = page_df.reset_index(drop=True).copy()
-    editor_df.insert(0, "☑", select_all)
-
-    column_config = {
-        "☑": st.column_config.CheckboxColumn(
-            "☑", default=select_all, width="small",
-        ),
-    }
-
-    edited = st.data_editor(
-        editor_df,
-        column_config=column_config,
-        disabled=[c for c in editor_df.columns if c != "☑"],
-        use_container_width=True,
-        hide_index=True,
-        key=f"_mgmt_editor_p{current_page}",
-    )
-
     # ── Count selected rows ──
-    selected_mask = edited["☑"] == True  # noqa: E712
-    n_selected = int(selected_mask.sum())
+    selected_indices = selection.selection.rows if selection.selection else []
+    n_selected = len(selected_indices)
 
     # ── Delete button with confirmation ──
     if n_selected > 0:
@@ -628,10 +942,8 @@ def _render_tab_manage():
                 if confirm_text != "XÓA":
                     st.error("❌ Nhập đúng `XÓA` để xác nhận xóa.")
                 else:
-                    # Get the selected rows from the original display_df
-                    selected_rows = edited[selected_mask].drop(columns=["☑"])
-                    # Map back to original indices via page offset
-                    orig_indices = [start_idx + i for i in selected_rows.index]
+                    # Map selected view_df indices back to display_df positions
+                    orig_indices = [start_idx + i for i in selected_indices]
                     rows_to_delete = display_df.iloc[orig_indices]
 
                     client = get_client()
@@ -1080,7 +1392,7 @@ def _render_tab_import():
     st.markdown(section_title("Import dữ liệu Excel lên BigQuery", "📥"), unsafe_allow_html=True)
     st.markdown(info_banner(
         f"Upload file Excel chứa dữ liệu thanh toán BHYT. "
-        f"Target: <code style='color:#60a5fa;background:rgba(30,41,59,0.8);padding:0.15rem 0.4rem;"
+        f"Target: <code style='color:var(--accent-light);background:var(--bg-code);padding:0.15rem 0.4rem;"
         f"border-radius:0.25rem;font-size:0.85em;'>{FULL_TABLE_ID}</code>",
         "info"
     ), unsafe_allow_html=True)
@@ -1105,10 +1417,10 @@ def _render_tab_import():
         st.session_state.pop("_import_done_replace", None)
     st.markdown(f"""
     <div style="display:flex;align-items:center;gap:0.5rem;margin-bottom:1rem;padding:0.75rem 1rem;
-                background:rgba(30,41,59,0.4);border-radius:0.5rem;border:1px solid rgba(51,65,85,0.4);">
-        <span style="color:#60a5fa;">📁</span>
-        <span style="font-size:0.875rem;color:#cbd5e1;font-weight:500;">File:
-            <code style="color:#60a5fa;background:rgba(30,41,59,0.8);padding:0.15rem 0.4rem;
+                background:var(--bg-card-alt);border-radius:0.5rem;border:1px solid var(--border);">
+        <span style="color:var(--accent-light);">📁</span>
+        <span style="font-size:0.875rem;color:var(--text-body);font-weight:500;">File:
+            <code style="color:var(--accent-light);background:var(--bg-code);padding:0.15rem 0.4rem;
                          border-radius:0.25rem;font-size:0.85em;">{filename}</code>
         </span>
     </div>
@@ -1205,7 +1517,7 @@ def _render_tab_import():
         st.markdown(info_banner(
             f"Phát hiện <strong>{len(invalid_df):,}</strong> dòng không hợp lệ "
             f"(thiếu dữ liệu hoặc sai định dạng). Đã loại khỏi tập dữ liệu upload.<br>"
-            f"<small style='color:#94a3b8;'>Chi tiết: {issue_details}</small>",
+            f"<small style='color:var(--text-secondary);'>Chi tiết: {issue_details}</small>",
             "warning"
         ), unsafe_allow_html=True)
 
@@ -1360,3 +1672,47 @@ def render():
 
     with tab3:
         _render_tab_import()
+
+    # ── Persist active tab across st.rerun() (e.g. theme toggle) ──
+    # Uses browser sessionStorage to track the active tab index.
+    # On rerun, JS restores the previously active tab by clicking it.
+    import streamlit.components.v1 as components
+    components.html("""
+    <script>
+    (function() {
+        const doc = window.parent.document;
+        const STORAGE_KEY = '_ov_active_tab';
+
+        // Restore saved tab on load
+        const savedIdx = parseInt(sessionStorage.getItem(STORAGE_KEY) || '0', 10);
+        if (savedIdx > 0) {
+            const tabs = doc.querySelectorAll('[data-baseweb="tab"]');
+            if (tabs && tabs.length > savedIdx) {
+                const currentActive = doc.querySelector('[data-baseweb="tab"][aria-selected="true"]');
+                const targetTab = tabs[savedIdx];
+                if (currentActive !== targetTab) {
+                    targetTab.click();
+                }
+            }
+        }
+
+        // Watch for tab clicks and save the active index
+        function watchTabs() {
+            const tabs = doc.querySelectorAll('[data-baseweb="tab"]');
+            tabs.forEach((tab, idx) => {
+                if (!tab.dataset._tabWatch) {
+                    tab.dataset._tabWatch = '1';
+                    tab.addEventListener('click', () => {
+                        sessionStorage.setItem(STORAGE_KEY, String(idx));
+                    });
+                }
+            });
+        }
+
+        watchTabs();
+        const obs = new MutationObserver(watchTabs);
+        obs.observe(doc.body, { childList: true, subtree: true });
+    })();
+    </script>
+    """, height=0)
+

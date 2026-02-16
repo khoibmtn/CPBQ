@@ -257,54 +257,54 @@ def _render_icd_table(periods: list, icd_list: list, cost_type: str,
     }
     .icd-table th, .icd-table td {
         padding: 6px 10px;
-        border: 1px solid #475569;
+        border: 1px solid var(--tbl-border);
     }
     .icd-table th {
         font-weight: 600;
         text-align: center;
-        color: #f8fafc;
+        color: var(--tbl-th-color);
     }
     .icd-table td {
         text-align: right;
-        color: #f1f5f9;
+        color: var(--tbl-td-color);
     }
     .icd-table .col-stt {
         text-align: center;
         font-weight: 600;
         width: 40px;
-        background-color: #334155;
-        color: #cbd5e1;
+        background-color: var(--tbl-col-fixed-bg);
+        color: var(--tbl-col-fixed-muted);
     }
     .icd-table .col-icd {
         text-align: left;
         font-weight: 600;
         white-space: nowrap;
-        background-color: #334155;
-        color: #f8fafc;
+        background-color: var(--tbl-col-fixed-bg);
+        color: var(--tbl-col-fixed-color);
     }
     .icd-table .grp-header {
-        background-color: #1e293b;
+        background-color: var(--tbl-th-bg);
         font-weight: 700;
         font-size: 12px;
         letter-spacing: 0.02em;
     }
     .icd-table .sub-header {
-        background-color: #334155;
+        background-color: var(--tbl-sub-header-bg);
         font-size: 11px;
     }
-    .icd-table .row-even { background-color: #1e293b; }
-    .icd-table .row-odd  { background-color: #263548; }
+    .icd-table .row-even { background-color: var(--tbl-row-even); }
+    .icd-table .row-odd  { background-color: var(--tbl-row-odd); }
     .icd-table .row-total {
-        background-color: #172033 !important;
+        background-color: var(--tbl-row-total) !important;
         font-weight: 700;
     }
     .icd-table .row-total td {
-        background-color: #172033 !important;
-        color: #f8fafc !important;
+        background-color: var(--tbl-row-total) !important;
+        color: var(--tbl-th-color) !important;
         font-weight: 700;
     }
-    .icd-table .diff-pos { color: #86efac; }
-    .icd-table .diff-neg { color: #fca5a5; }
+    .icd-table .diff-pos { color: var(--tbl-diff-pos); }
+    .icd-table .diff-neg { color: var(--tbl-diff-neg); }
     </style>
     """
 
@@ -325,7 +325,7 @@ def _render_icd_table(periods: list, icd_list: list, cost_type: str,
         html += f'<th class="grp-header" colspan="{cols_per_period}" style="background-color:{bg};">{p["period_text"]}</th>'
     if show_diff:
         diff_dir_label = "T-P" if diff_reverse else "P-T"
-        html += f'<th class="grp-header" colspan="2" style="background-color:#475569;">Chênh lệch ({diff_dir_label})</th>'
+        html += f'<th class="grp-header" colspan="2" style="background-color:var(--tbl-border);">Chênh lệch ({diff_dir_label})</th>'
     html += "</tr>"
 
     # ── HEADER ROW 2 ──
@@ -335,8 +335,8 @@ def _render_icd_table(periods: list, icd_list: list, cost_type: str,
         for cl in col_labels:
             html += f'<th class="sub-header" style="background-color:{bg};">{cl}</th>'
     if show_diff:
-        html += f'<th class="sub-header" style="background-color:#475569;">{diff_value_label}</th>'
-        html += '<th class="sub-header" style="background-color:#475569;">%</th>'
+        html += f'<th class="sub-header" style="background-color:var(--tbl-border);">{diff_value_label}</th>'
+        html += '<th class="sub-header" style="background-color:var(--tbl-border);">%</th>'
     html += "</tr>"
     html += "</thead>"
 
@@ -710,7 +710,7 @@ def render():
             font-size: 0.9rem;
             font-weight: 700;
             letter-spacing: 0.05em;
-            color: #cbd5e1;
+            color: var(--text-body);
         }
         .icd-badge {
             display: inline-flex;
@@ -791,7 +791,7 @@ def render():
             st.session_state[saved_fm] = from_month
 
         with cols[3]:
-            st.markdown("<div style='text-align:center;padding-top:0.6rem;color:#94a3b8;'>→</div>",
+            st.markdown("<div style='text-align:center;padding-top:0.6rem;color:var(--text-muted);'>→</div>",
                         unsafe_allow_html=True)
 
         with cols[4]:
@@ -1067,7 +1067,7 @@ def render():
     col_info, col_dl = st.columns([5, 1])
     with col_info:
         st.markdown(
-            f"<div style='color:#94a3b8;font-size:0.85rem;margin-bottom:0.5rem;'>"
+            f"<div style='color:var(--text-secondary);font-size:0.85rem;margin-bottom:0.5rem;'>"
             f"📋 Hiển thị <b>{len(icd_list)}</b> / {total_icd_count} mã bệnh "
             f"(tích lũy {pct_col_label} ≈ <b>{cum_sum:.1f}%</b> / {ratio}%)"
             f"</div>",

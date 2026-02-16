@@ -147,11 +147,11 @@ def _fmt_pct_change(first_val, last_val) -> str:
         return "-"
     pct = (last_val / first_val - 1) * 100
     if pct > 0:
-        color, sign = "#86efac", "+"
+        color, sign = "var(--tbl-diff-pos)", "+"
     elif pct < 0:
-        color, sign = "#fca5a5", ""
+        color, sign = "var(--tbl-diff-neg)", ""
     else:
-        color, sign = "#94a3b8", ""
+        color, sign = "var(--text-muted)", ""
     return f'<span style="color:{color};font-weight:600;">{sign}{pct:.1f}%</span>'
 
 
@@ -176,9 +176,9 @@ def _fmt_diff(first_val, last_val) -> str:
     if diff == 0:
         return "-"
     if diff > 0:
-        color, sign = "#86efac", "+"
+        color, sign = "var(--tbl-diff-pos)", "+"
     else:
-        color, sign = "#fca5a5", ""
+        color, sign = "var(--tbl-diff-neg)", ""
     # Format based on magnitude
     if isinstance(diff, float) and abs(diff) < 100:
         txt = f"{sign}{diff:.2f}"
@@ -323,38 +323,38 @@ def _render_hospital_table(periods: list, show_ratio: bool, show_diff: bool):
     }
     .hs-table th, .hs-table td {
         padding: 5px 10px;
-        border: 1px solid #475569;
+        border: 1px solid var(--tbl-border);
     }
     .hs-table th {
         font-weight: 600;
         text-align: center;
-        color: #f8fafc;
+        color: var(--tbl-th-color);
     }
     .hs-table td {
         text-align: right;
-        color: #f1f5f9;
+        color: var(--tbl-td-color);
     }
-    .hs-table .h1 { background-color: #1e293b; font-size: 13px; }
-    .hs-table .h2 { background-color: #334155; font-size: 11px; }
+    .hs-table .h1 { background-color: var(--tbl-th-bg); font-size: 13px; }
+    .hs-table .h2 { background-color: var(--tbl-sub-header-bg); font-size: 11px; }
     .hs-table .lbl {
         text-align: left;
         font-weight: 600;
         white-space: nowrap;
-        background-color: #334155;
-        color: #f8fafc;
+        background-color: var(--tbl-col-fixed-bg);
+        color: var(--tbl-col-fixed-color);
         padding-left: 0.8rem;
     }
     .hs-table .sec-hdr td {
-        background-color: #0f172a !important;
-        color: #60a5fa !important;
+        background-color: var(--tbl-section-bg) !important;
+        color: var(--tbl-section-color) !important;
         font-weight: 700;
         font-size: 13px;
     }
-    .hs-table .row-even { background-color: #1e293b; }
-    .hs-table .row-odd  { background-color: #263548; }
+    .hs-table .row-even { background-color: var(--tbl-row-even); }
+    .hs-table .row-odd  { background-color: var(--tbl-row-odd); }
     .hs-table .row-total td {
-        background-color: #172033 !important;
-        color: #f8fafc !important;
+        background-color: var(--tbl-row-total) !important;
+        color: var(--tbl-th-color) !important;
         font-weight: 700;
     }
     </style>
@@ -379,9 +379,9 @@ def _render_hospital_table(periods: list, show_ratio: bool, show_diff: bool):
             bg = p["color"]["border"]
             html += f'<th class="h2" style="background-color:{bg};">{p["period_text"]}</th>'
         if show_diff:
-            html += '<th class="h2" style="background-color:#475569;">Chênh lệch</th>'
+            html += '<th class="h2" style="background-color:var(--tbl-border);">Chênh lệch</th>'
         if show_ratio:
-            html += '<th class="h2" style="background-color:#334155;">Tỷ lệ %</th>'
+            html += '<th class="h2" style="background-color:var(--tbl-sub-header-bg);">Tỷ lệ %</th>'
     html += "</tr></thead>"
 
     # ── BODY ──
@@ -391,8 +391,8 @@ def _render_hospital_table(periods: list, show_ratio: bool, show_diff: bool):
     for r in all_rows:
         if r["section"]:
             html += '<tr class="sec-hdr">'
-            html += f'<td class="lbl" style="color:#60a5fa !important;background-color:#0f172a !important;">{r["label"]}</td>'
-            html += f'<td colspan="{n_data_cols}" style="background-color:#0f172a;"></td>'
+            html += f'<td class="lbl" style="color:var(--tbl-section-color) !important;background-color:var(--tbl-section-bg) !important;">{r["label"]}</td>'
+            html += f'<td colspan="{n_data_cols}" style="background-color:var(--tbl-section-bg);"></td>'
             html += "</tr>"
             row_idx = 0
             continue
@@ -577,7 +577,7 @@ def render():
             font-size: 0.9rem;
             font-weight: 700;
             letter-spacing: 0.05em;
-            color: #cbd5e1;
+            color: var(--text-body);
         }
         .hs-badge {
             display: inline-flex;
@@ -651,7 +651,7 @@ def render():
 
         with cols[3]:
             st.markdown(
-                '<div style="text-align:center;padding-top:0.6rem;color:#94a3b8;">→</div>',
+                '<div style="text-align:center;padding-top:0.6rem;color:var(--text-muted);">→</div>',
                 unsafe_allow_html=True,
             )
 

@@ -226,13 +226,13 @@ def _fmt_pct_change(first_val, last_val) -> str:
         return ""
     pct = (last_val / first_val - 1) * 100
     if pct > 0:
-        color = "#86efac"  # green (muted)
+        color = "var(--tbl-diff-pos)"
         sign = "+"
     elif pct < 0:
-        color = "#fca5a5"  # red (muted)
+        color = "var(--tbl-diff-neg)"
         sign = ""
     else:
-        color = "#94a3b8"  # gray
+        color = "var(--text-muted)"
         sign = ""
     return f'<span style="color:{color};font-weight:600;">{sign}{pct:.1f}%</span>'
 
@@ -247,9 +247,9 @@ def _fmt_diff(first_val, last_val) -> str:
     if diff == 0:
         return "-"
     if diff > 0:
-        color, sign = "#86efac", "+"
+        color, sign = "var(--tbl-diff-pos)", "+"
     else:
-        color, sign = "#fca5a5", ""
+        color, sign = "var(--tbl-diff-neg)", ""
     if isinstance(diff, float) and abs(diff) < 100:
         txt = f"{sign}{diff:.2f}"
     else:
@@ -606,68 +606,68 @@ def _render_comparison_table(periods: list, columns=None, show_ratio=False, show
     }
     .cmp-table th, .cmp-table td {
         padding: 6px 10px;
-        border: 1px solid #475569;
+        border: 1px solid var(--tbl-border);
     }
     .cmp-table th {
         font-weight: 600;
         text-align: center;
-        color: #f8fafc;
+        color: var(--tbl-th-color);
     }
     .cmp-table td {
         text-align: right;
-        color: #f1f5f9;
+        color: var(--tbl-td-color);
     }
     .cmp-table .col-tt {
         text-align: center;
         font-weight: 600;
         width: 40px;
-        background-color: #334155;
-        color: #cbd5e1;
+        background-color: var(--tbl-col-fixed-bg);
+        color: var(--tbl-col-fixed-muted);
     }
     .cmp-table .col-khoa {
         text-align: left;
         font-weight: 600;
         white-space: nowrap;
-        background-color: #334155;
-        color: #f8fafc;
+        background-color: var(--tbl-col-fixed-bg);
+        color: var(--tbl-col-fixed-color);
     }
     .cmp-table .grp-header {
-        background-color: #1e293b;
+        background-color: var(--tbl-th-bg);
         font-weight: 700;
         font-size: 12px;
         letter-spacing: 0.02em;
     }
     .cmp-table .sub-header {
-        background-color: #334155;
+        background-color: var(--tbl-sub-header-bg);
         font-size: 11px;
     }
-    .cmp-table .row-even { background-color: #1e293b; }
-    .cmp-table .row-odd  { background-color: #263548; }
+    .cmp-table .row-even { background-color: var(--tbl-row-even); }
+    .cmp-table .row-odd  { background-color: var(--tbl-row-odd); }
     .cmp-table .row-section {
-        background-color: #0f172a !important;
+        background-color: var(--tbl-section-bg) !important;
     }
     .cmp-table .row-section td {
-        background-color: #0f172a !important;
-        color: #60a5fa !important;
+        background-color: var(--tbl-section-bg) !important;
+        color: var(--tbl-section-color) !important;
         font-weight: 700;
         font-size: 13px;
     }
     .cmp-table .row-subtotal {
-        background-color: #1a2744 !important;
+        background-color: var(--tbl-row-subtotal) !important;
     }
     .cmp-table .row-subtotal td {
-        background-color: #1a2744 !important;
-        color: #93c5fd !important;
+        background-color: var(--tbl-row-subtotal) !important;
+        color: var(--tbl-subtotal-color) !important;
         font-weight: 700;
         font-style: italic;
     }
     .cmp-table .row-total {
-        background-color: #172033 !important;
+        background-color: var(--tbl-row-total) !important;
         font-weight: 700;
     }
     .cmp-table .row-total td {
-        background-color: #172033 !important;
-        color: #f8fafc !important;
+        background-color: var(--tbl-row-total) !important;
+        color: var(--tbl-th-color) !important;
         font-weight: 700;
     }
     </style>
@@ -695,9 +695,9 @@ def _render_comparison_table(periods: list, columns=None, show_ratio=False, show
             bg = p["color"]["border"]
             html += f'<th class="sub-header" style="background-color:{bg};">{p["period_text"]}</th>'
         if show_diff:
-            html += '<th class="sub-header" style="background-color:#475569;">Chênh lệch</th>'
+            html += '<th class="sub-header" style="background-color:var(--tbl-border);">Chênh lệch</th>'
         if show_ratio:
-            html += '<th class="sub-header" style="background-color:#334155;">Tỷ lệ%</th>'
+            html += '<th class="sub-header" style="background-color:var(--tbl-sub-header-bg);">Tỷ lệ%</th>'
     html += "</tr>"
     html += "</thead>"
 
@@ -720,7 +720,7 @@ def _render_comparison_table(periods: list, columns=None, show_ratio=False, show
         # Section header row
         html += '<tr class="row-section">'
         html += '<td class="col-tt"></td>'
-        html += f'<td class="col-khoa" style="color:#60a5fa !important;">{section_title}</td>'
+        html += f'<td class="col-khoa" style="color:var(--tbl-section-color) !important;">{section_title}</td>'
         html += f'<td colspan="{n_data_cols}"></td>'
         html += "</tr>"
 
@@ -766,7 +766,7 @@ def _render_comparison_table(periods: list, columns=None, show_ratio=False, show
     # ── III. TỔNG section ──
     html += '<tr class="row-section">'
     html += '<td class="col-tt"></td>'
-    html += f'<td class="col-khoa" style="color:#60a5fa !important;">III. TỔNG</td>'
+    html += f'<td class="col-khoa" style="color:var(--tbl-section-color) !important;">III. TỔNG</td>'
     html += f'<td colspan="{n_data_cols}"></td>'
     html += "</tr>"
 
@@ -774,7 +774,7 @@ def _render_comparison_table(periods: list, columns=None, show_ratio=False, show
     ngoai_totals = all_subtotal_rows.get("Ngoại trú", [{} for _ in range(n_periods)])
     html += '<tr class="row-subtotal">'
     html += '<td class="col-tt">1</td>'
-    html += '<td class="col-khoa" style="color:#93c5fd !important;">Ngoại trú</td>'
+    html += '<td class="col-khoa" style="color:var(--tbl-subtotal-color) !important;">Ngoại trú</td>'
     for col in cols:
         for pi in range(n_periods):
             if col["type"] == "metric":
@@ -803,7 +803,7 @@ def _render_comparison_table(periods: list, columns=None, show_ratio=False, show
     noi_totals = all_subtotal_rows.get("Nội trú", [{} for _ in range(n_periods)])
     html += '<tr class="row-subtotal">'
     html += '<td class="col-tt">2</td>'
-    html += '<td class="col-khoa" style="color:#93c5fd !important;">Nội trú</td>'
+    html += '<td class="col-khoa" style="color:var(--tbl-subtotal-color) !important;">Nội trú</td>'
     for col in cols:
         for pi in range(n_periods):
             if col["type"] == "metric":
@@ -1211,7 +1211,7 @@ def render():
             font-size: 0.9rem;
             font-weight: 700;
             letter-spacing: 0.05em;
-            color: #cbd5e1;
+            color: var(--text-body);
         }
         .cbd-badge {
             display: inline-flex;
@@ -1302,7 +1302,7 @@ def render():
         # ── Arrow ──
         with cols[3]:
             st.markdown(
-                '<div style="text-align:center;padding-top:0.6rem;color:#94a3b8;">→</div>',
+                '<div style="text-align:center;padding-top:0.6rem;color:var(--text-muted);">→</div>',
                 unsafe_allow_html=True,
             )
 
