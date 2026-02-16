@@ -1,6 +1,6 @@
 # CPBQ Project – Source of Truth
 
-## Last Updated: 2026-02-15T00:56+07:00
+## Last Updated: 2026-02-17T01:50+07:00
 ## Git Tag: v20260215-0056
 
 ## Project Overview
@@ -23,28 +23,34 @@ Streamlit dashboard for BHYT (health insurance) cost analysis backed by BigQuery
 
 ## Recent Changes (this session)
 
-### Redesigned "Quản lý số liệu" Tab
-- **Year-based data loading**: Dropdown for year + "Tải dữ liệu" button → on-demand query from `v_thanh_toan` VIEW
-- **Full-field table**: All columns from enriched view (ml2, ml4, ten_cskcb, khoa, ma_benh_chinh), excluding upload_timestamp & source_file
-- **Instant search**: Text input filters client-side in real-time
-- **Configurable search columns**: Popover "⚙️ Cột tìm kiếm" with multiselect (defaults: ho_ten, ma_bn, ma_the, ma_benh, etc.)
-- **Row-level checkboxes**: `st.data_editor` with ☑ column for each row
-- **Select All**: Checkbox above table to select/deselect all rows on current page
-- **Delete selected rows**: Button "🗑️ Xóa N dòng đã chọn" with warning + "XÓA" confirmation
-- **Auto-refresh after delete**: Caches cleared, data reloaded from BQ, toast shown after rerun
-- **Removed**: Old "Xóa dữ liệu theo kỳ" section completely removed
+### Inline Clear Button in Search Inputs
+- Removed separate ❌ column from search condition rows
+- Injected CSS+JS via `st.components.v1.html` using `window.parent.document` to convert keyword inputs to `type="search"` (native browser X icon)
+- Added `search` event listener to dispatch React-compatible events when X is clicked
 
-### New cached functions in overview.py
-- `_load_available_years()` — distinct years from main table
-- `_load_manage_data(nam_qt)` — full data from VIEW filtered by year
+### Loading Animation (st.status)
+- Replaced `st.spinner()` with `st.status()` for "Tải dữ liệu" and BigQuery search
+- Shows step-by-step progress (⏳ running → ✅ complete)
 
-### Key constants
+### Tab Persistence Across Theme Toggle
+- Problem: `st.rerun()` on theme toggle reset `st.tabs()` to first tab
+- Solution: JS using browser `sessionStorage` tracks active tab clicks, restores tab after rerun
+- Implemented in `render()` function at end of `overview.py`
+
+### Multi-Condition Search Builder
+- Year range selector (start/end year) with "Phương pháp" combobox (Auto/RAM/BigQuery)
+- Auto threshold: ≤3 years → RAM, >3 years → BigQuery
+- Multi-condition search with AND/OR operators, add/delete conditions
+- BigQuery direct search for large datasets (`_search_bigquery()`)
+
+## Key Constants
 - `_MANAGE_EXCLUDE_COLS = {"upload_timestamp", "source_file"}`
 - `_DEFAULT_SEARCH_COLS = ["ho_ten", "ma_bn", "ma_the", "ma_benh", ...]`
-- `_ROW_KEY_COLS = ["ma_cskcb", "ma_bn", "ma_loaikcb", "ngay_vao", "ngay_ra"]` (composite key for delete)
+- `_ROW_KEY_COLS = ["ma_cskcb", "ma_bn", "ma_loaikcb", "ngay_vao", "ngay_ra"]`
+- `_AUTO_THRESHOLD = 3` (years, RAM vs BigQuery cutoff)
 
 ## Previous Session Changes
-- Revamped Import tab: auto-detection of sheets, row validation, paginated tables, duplicate handling, lookup validation, double-upload prevention
-- Reusable `paginated_dataframe()` component in `tw_components.py`
-- `_clear_all_caches()` helper for cross-page cache invalidation
+- Row-level checkboxes, Select All, Delete selected rows with confirmation
+- Revamped Import tab: auto-detection, validation, pagination, duplicate handling
+- Reusable `paginated_dataframe()` in `tw_components.py`
 - Color scheme redesign for dark theme consistency
